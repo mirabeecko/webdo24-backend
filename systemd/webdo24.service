@@ -1,0 +1,17 @@
+[Unit]
+Description=Webdo24 Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/webdo24-backend
+ExecStart=/usr/bin/node /var/www/webdo24-backend/.next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3001
+EnvironmentFile=/var/www/webdo24-backend/.env.local
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+webdo24.cz, www.webdo24.cz {
+    reverse_proxy localhost:3001
+    
+    encode gzip zstd
+    
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+    
+    tls {
+        # Caddy automatically obtains and renews certificates via ACME/Let's Encrypt
+    }
+}
+
+# API and webhook endpoints
+webdo24-api.cz {
+    reverse_proxy localhost:3001
+    
+    encode gzip zstd
+    
+    tls {
+        # Caddy automatically obtains and renews certificates
+    }
+}
