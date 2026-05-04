@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import AuthGuard from "@/components/auth/AuthGuard";
 import { ToastProvider } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
@@ -17,7 +16,7 @@ export default function RootLayout({
     <html lang="cs">
       <body className="min-h-screen bg-gray-50 text-gray-900">
         <ToastProvider>
-          <AuthGuard>{children}</AuthGuard>
+          {children}
         </ToastProvider>
       </body>
     </html>

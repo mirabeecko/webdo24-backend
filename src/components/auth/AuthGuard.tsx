@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -8,33 +8,45 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
+    let isMounted = true
+
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
 
-      const isAuthPage = pathname === '/login' || pathname === '/register'
+        const isAuthPage = pathname === '/login' || pathname === '/register'
 
-      if (!user && !isAuthPage && !pathname.startsWith('/api/')) {
-        router.push('/login')
-        return
-      }
-
-      if (user && isAuthPage) {
-        const role = user.user_metadata?.role
-        if (role === 'admin') {
-          router.push('/admin')
-        } else {
-          router.push('/customer')
+        if (!user && !isAuthPage && !pathname.startsWith('/api/')) {
+          router.replace('/login')
+          return
         }
-        return
-      }
 
-      setLoading(false)
+        if (user && isAuthPage) {
+          const role = user.user_metadata?.role
+          if (role === 'admin') {
+            router.replace('/admin')
+          } else {
+            router.replace('/customer')
+          }
+          return
+        }
+      } catch {
+        // Prevent hard lock on loading UI when auth request fails.
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
     }
 
     checkAuth()
+
+    return () => {
+      isMounted = false
+    }
   }, [pathname, router, supabase])
 
   if (loading && pathname !== '/login' && pathname !== '/register') {
