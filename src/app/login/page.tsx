@@ -24,8 +24,8 @@ export default function LoginPage() {
         throw new Error('Chybí konfigurace Supabase. Zkontroluj env vars.')
       }
 
-      const { createClient } = await import('@supabase/ssr')
-      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      const { createBrowserClient } = await import('@supabase/ssr')
+      const supabase = createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
