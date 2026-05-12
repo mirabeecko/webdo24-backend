@@ -25,10 +25,7 @@ export default function RegisterPage() {
       email,
       password,
       options: {
-        data: {
-          role: 'customer',
-          name,
-        },
+        data: { role: 'customer', name },
       },
     })
 
@@ -38,11 +35,9 @@ export default function RegisterPage() {
       return
     }
 
-    const user = data.user
-    if (user) {
-      // Create customer record
+    if (data.user) {
       await supabase.from('webdo24_customers').insert({
-        user_id: user.id,
+        user_id: data.user.id,
         name,
         email,
       })
@@ -56,8 +51,11 @@ export default function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
         <h1 className="mb-6 text-center text-2xl font-bold text-gray-800">
-          Webdo24 - Registrace
+          WEBDO24 LEAD MACHINE™
         </h1>
+        <p className="mb-6 text-center text-sm text-gray-500">
+          Vytvoření nového účtu
+        </p>
 
         {error && (
           <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">
@@ -109,7 +107,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="w-full rounded-md bg-[#0F172A] px-4 py-2 font-medium text-white hover:bg-gray-800 disabled:opacity-50"
           >
             {loading ? 'Registrace...' : 'Zaregistrovat se'}
           </button>

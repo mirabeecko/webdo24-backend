@@ -17,7 +17,7 @@ export default async function HomePage() {
       redirect('/admin')
     }
 
-    redirect('/customer')
+    redirect('/dashboard')
   } catch {
     redirect('/login')
   }
