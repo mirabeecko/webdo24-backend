@@ -11,6 +11,7 @@ interface Webdo24Customer {
   stripe_subscription_id?: string | null
   subscription_status?: string | null
   current_period_end?: string | null
+  has_pro_pack?: boolean | null
 }
 
 interface StripeSubscriptionExtended extends Stripe.Subscription {
@@ -63,25 +64,21 @@ export async function POST(request: Request) {
       const email = session.customer_details?.email ?? null
       const stripeCustomerId = extractStripeId(session.customer)
       const stripeSubscriptionId = extractStripeId(session.subscription)
+      const source = session.metadata?.source || 'webdo24'
 
       console.log('STRIPE SESSION:', {
         id: session.id,
+        mode: session.mode,
         email,
         stripeCustomerId,
         stripeSubscriptionId,
+        source,
       })
 
       if (!email) {
         console.error('MISSING CUSTOMER EMAIL: Cannot create or update customer without email')
         return NextResponse.json({ received: true })
       }
-
-      if (!stripeCustomerId || !stripeSubscriptionId) {
-        console.error('MISSING STRIPE IDS:', { stripeCustomerId, stripeSubscriptionId })
-        return NextResponse.json({ received: true })
-      }
-
-      const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId) as Stripe.Response<StripeSubscriptionExtended>
 
       const { data: existingCustomers, error: findError } = await admin
         .from('webdo24_customers')
@@ -93,6 +90,48 @@ export async function POST(request: Request) {
         console.error('SUPABASE FIND ERROR:', findError)
         return NextResponse.json({ received: true })
       }
+
+      const customer = existingCustomers && existingCustomers.length > 0 ? existingCustomers[0] : null
+
+      // ── Upsell one-time payment ──
+      if (session.mode === 'payment' && source === 'webdo24_upsell') {
+        if (customer) {
+          // Activate pro pack
+          const { error: updateErr } = await admin
+            .from('webdo24_customers')
+            .update({ has_pro_pack: true })
+            .eq('id', customer.id)
+
+          console.log('PRO PACK ACTIVATED:', { id: customer.id, error: updateErr })
+
+          // Record purchase
+          const { error: purchaseErr } = await admin
+            .from('webdo24_upsell_purchases')
+            .insert({
+              customer_id: customer.id,
+              stripe_session_id: session.id,
+              stripe_payment_intent_id: extractStripeId(session.payment_intent),
+              amount: session.amount_total ?? 90000,
+              currency: session.currency ?? 'czk',
+              status: 'paid',
+              metadata: session.metadata || {},
+            })
+
+          console.log('UPSELL PURCHASE RECORDED:', { error: purchaseErr })
+        } else {
+          console.error('UPSELL: Customer not found for email', email)
+        }
+
+        return NextResponse.json({ received: true })
+      }
+
+      // ── Subscription payment ──
+      if (!stripeCustomerId || !stripeSubscriptionId) {
+        console.error('MISSING STRIPE IDS:', { stripeCustomerId, stripeSubscriptionId })
+        return NextResponse.json({ received: true })
+      }
+
+      const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId) as Stripe.Response<StripeSubscriptionExtended>
 
       const currentPeriodEnd =
         typeof subscription.current_period_end === 'number'
@@ -106,8 +145,7 @@ export async function POST(request: Request) {
         ...(currentPeriodEnd ? { current_period_end: currentPeriodEnd } : {}),
       }
 
-      if (existingCustomers && existingCustomers.length > 0) {
-        const customer = existingCustomers[0]
+      if (customer) {
         console.log('CUSTOMER FOUND:', { id: customer.id, email: customer.email })
 
         const { data, error } = await admin

@@ -17,7 +17,7 @@ export async function getDashboardData() {
 
   const { data: customer, error: customerErr } = await supabase
     .from('webdo24_customers')
-    .select('id, name, company')
+    .select('id, name, company, has_pro_pack')
     .eq('user_id', user.id)
     .single()
 
@@ -83,6 +83,8 @@ export async function getDashboardData() {
 
   return {
     customerName: customer.name,
+    customerEmail: user.email || '',
+    hasProPack: customer.has_pro_pack || false,
     companyName: customer.company,
     project,
     newLeadsCount: newLeadsCount || 0,

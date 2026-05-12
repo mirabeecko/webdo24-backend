@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { getDashboardData } from '@/lib/actions/dashboard'
+import UpsellCard from './UpsellCard'
 
 function TrendIcon({ trend }: { trend: 'up' | 'down' | 'neutral' }) {
   if (trend === 'up') return <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
@@ -71,7 +72,7 @@ export default async function DashboardView() {
     )
   }
 
-  const { customerName, companyName, project, newLeadsCount, todayViews, todayVisitors, yesterdayViews, recentLeads, testimonialsCount, avgRating } = data
+  const { customerName, customerEmail, hasProPack, companyName, project, newLeadsCount, todayViews, todayVisitors, yesterdayViews, recentLeads, testimonialsCount, avgRating } = data
 
   const trend: 'up' | 'down' | 'neutral' = todayViews > yesterdayViews ? 'up' : todayViews < yesterdayViews ? 'down' : 'neutral'
   const trendValue = yesterdayViews > 0
@@ -268,6 +269,11 @@ export default async function DashboardView() {
               Upravit web
             </Link>
           </div>
+
+          {/* Upsell */}
+          {!hasProPack && (
+            <UpsellCard customerEmail={customerEmail} projectId={project.id} />
+          )}
 
           {/* Rating Preview */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
