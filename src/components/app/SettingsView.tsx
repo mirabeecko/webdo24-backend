@@ -11,6 +11,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { getProfile, updateProfile, getAutomations, toggleAutomation } from '@/lib/actions/settings'
+import EmailRoutingView from './EmailRoutingView'
 
 interface Automation {
   id: string
@@ -188,6 +189,9 @@ export default function SettingsView() {
           </div>
         </div>
       )}
+
+      {/* Email Routing */}
+      <EmailRoutingView />
 
       {/* AI */}
       {aiItems.length > 0 && (
