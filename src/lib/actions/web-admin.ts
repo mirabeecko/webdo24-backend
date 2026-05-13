@@ -152,7 +152,7 @@ export async function publishWebsite() {
   revalidatePath(`/${project.slug}`)
   revalidatePath('/web')
 
-  return { success: true, url: `https://webdo24.cz/${project.slug}/` }
+  return { success: true, url: `https://login.webdo24.cz/${project.slug}/` }
 }
 
 // ── VEŘEJNÝ WEB DATA ──
