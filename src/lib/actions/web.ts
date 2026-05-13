@@ -18,7 +18,7 @@ async function getCustomerProject() {
 
   const { data: project } = await supabase
     .from('webdo24_projects')
-    .select('id')
+    .select('id, slug, production_url')
     .eq('customer_id', customer.id)
     .single()
 
@@ -125,6 +125,12 @@ export async function getServices() {
     .order('sort_order', { ascending: true })
 
   return data || []
+}
+
+export async function getProjectUrl() {
+  const project = await getCustomerProject()
+  if (!project) return null
+  return project.production_url || `https://web.webdo24.cz/${project.slug}/`
 }
 
 export async function createService(formData: { title: string; description: string; price: string }) {
