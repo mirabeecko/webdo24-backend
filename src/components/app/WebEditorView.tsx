@@ -262,7 +262,7 @@ export default function WebEditorView() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
             <div className="flex gap-1.5"><div className="h-3 w-3 rounded-full bg-red-400" /><div className="h-3 w-3 rounded-full bg-amber-400" /><div className="h-3 w-3 rounded-full bg-emerald-400" /></div>
-            <div className="flex-1 bg-white rounded-lg px-3 py-1.5 text-xs text-gray-400 flex items-center gap-2"><Globe className="h-3 w-3" />web.webdo24.cz/truhlarstvi-drevorez</div>
+            <div className="flex-1 bg-white rounded-lg px-3 py-1.5 text-xs text-gray-400 flex items-center gap-2"><Globe className="h-3 w-3" />webdo24.cz/truhlarstvi-drevorez</div>
           </div>
 
           <div className="p-6 space-y-6">

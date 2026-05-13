@@ -16,7 +16,7 @@ webdo24.cz, www.webdo24.cz {
 }
 
 # API and webhook endpoints
-webdo24-api.cz {
+api.webdo24.cz {
     reverse_proxy localhost:3001
     
     encode gzip zstd
