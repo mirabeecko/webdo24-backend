@@ -1,0 +1,13 @@
+/var/www/webdo24-backend/logs/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 www-data www-data
+    sharedscripts
+    postrotate
+        /usr/bin/pm2 reloadLogs
+    endscript
+}
