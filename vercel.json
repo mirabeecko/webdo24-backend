@@ -1,5 +1,5 @@
 {
-  "buildCommand": "next build --no-turbo",
+  "buildCommand": "next build --webpack",
   "installCommand": "npm install",
   "framework": "nextjs"
 }
