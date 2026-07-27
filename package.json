@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start -p 3001",
     "lint": "eslint",
     "seed": "tsx -r dotenv/config scripts/seed.ts",
     "pm2:start": "pm2 start pm2/ecosystem.config.js",
     "pm2:stop": "pm2 stop webdo24-backend",
     "pm2:restart": "pm2 restart webdo24-backend",
-    "pm2:logs": "pm2 logs webdo24-backend"
+    "pm2:logs": "pm2 logs webdo24-backend",
+    "backup:tabs": "tsx -r dotenv/config scripts/backup-browser-tabs.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -29,12 +30,13 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.41",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "googleapis": "^171.4.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
