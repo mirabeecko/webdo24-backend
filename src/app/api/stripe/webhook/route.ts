@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { stripe } from '@/lib/stripe/client'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { queueEmailToCustomer } from '@/lib/email/queue'
 
 interface Webdo24Customer {
   id: string
@@ -118,8 +119,100 @@ export async function POST(request: Request) {
             })
 
           console.log('UPSELL PURCHASE RECORDED:', { error: purchaseErr })
+
+          // Resolve product name for the confirmation email
+          let productName = 'Webdo24 upgrade'
+          const productId = session.metadata?.product_id
+          if (productId) {
+            const { data: product } = await admin
+              .from('webdo24_products')
+              .select('name')
+              .eq('id', productId)
+              .single()
+            if (product?.name) productName = product.name
+          }
+
+          queueEmailToCustomer(customer.id, 'payment_success', {
+            productName,
+            amount: `${(session.amount_total ?? 0) / 100}`,
+            currency: (session.currency ?? 'czk').toUpperCase(),
+          }).catch((err) => console.error('[stripe webhook] upsell email failed:', err))
         } else {
           console.error('UPSELL: Customer not found for email', email)
+        }
+
+        return NextResponse.json({ received: true })
+      }
+
+      // ── Hosting subscription ──
+      if (session.mode === 'subscription' && source === 'webdo24_hosting') {
+        if (!stripeCustomerId || !stripeSubscriptionId) {
+          console.error('MISSING STRIPE IDS for hosting:', { stripeCustomerId, stripeSubscriptionId })
+          return NextResponse.json({ received: true })
+        }
+
+        const hostingProduct = session.metadata?.product || 'hosting'
+        const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId) as Stripe.Response<StripeSubscriptionExtended>
+
+        const hostingEnd = typeof subscription.current_period_end === 'number'
+          ? new Date(subscription.current_period_end * 1000).toISOString()
+          : null
+
+        const baseData: Partial<Webdo24Customer> = {
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+          subscription_status: subscription.status,
+          ...(hostingEnd ? { current_period_end: hostingEnd } : {}),
+        }
+
+        // Upsert into hosting_subscriptions table
+        const { error: hostingErr } = await admin
+          .from('webdo24_hosting_subscriptions')
+          .upsert({
+            customer_email: email,
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: stripeSubscriptionId,
+            product: hostingProduct,
+            status: subscription.status,
+            current_period_end: hostingEnd,
+            amount: session.amount_total ?? null,
+            currency: session.currency ?? 'czk',
+          }, { onConflict: 'stripe_subscription_id' })
+
+        if (hostingErr) {
+          console.error('HOSTING SUBSCRIPTION UPSERT ERROR:', hostingErr)
+        }
+
+        let customerId: string | null = null
+
+        if (customer) {
+          customerId = customer.id
+          await admin
+            .from('webdo24_customers')
+            .update(baseData)
+            .eq('id', customer.id)
+        } else {
+          const nameFromEmail = email.split('@')[0]
+          const customerName = session.customer_details?.name || nameFromEmail
+          const { data } = await admin
+            .from('webdo24_customers')
+            .insert({ email, name: customerName, ...baseData })
+            .select<string, Webdo24Customer>('*')
+          if (data && data.length > 0) customerId = data[0].id
+        }
+
+        if (customerId) {
+          const productLabels: Record<string, string> = {
+            hosting: 'Hosting WEBDO24 (2 490 Kč/rok)',
+            maintenance: 'Maintenance WEBDO24 (4 900 Kč/rok)',
+            bundle: 'Hosting + Maintenance WEBDO24 (7 390 Kč/rok)',
+          }
+          queueEmailToCustomer(customerId, 'hosting_renewed', {
+            productName: productLabels[hostingProduct] || 'Hosting WEBDO24',
+            amount: `${(session.amount_total ?? 0) / 100}`,
+            currency: (session.currency ?? 'czk').toUpperCase(),
+            nextExpiry: hostingEnd ? new Date(hostingEnd).toLocaleDateString('cs-CZ') : 'za 365 dní',
+          }).catch((err) => console.error('[stripe webhook] hosting renewed email failed:', err))
         }
 
         return NextResponse.json({ received: true })
@@ -145,8 +238,11 @@ export async function POST(request: Request) {
         ...(currentPeriodEnd ? { current_period_end: currentPeriodEnd } : {}),
       }
 
+      let customerId: string | null = null
+
       if (customer) {
         console.log('CUSTOMER FOUND:', { id: customer.id, email: customer.email })
+        customerId = customer.id
 
         const { data, error } = await admin
           .from('webdo24_customers')
@@ -171,6 +267,19 @@ export async function POST(request: Request) {
 
         console.log('CUSTOMER CREATED:', { email, name: customerName })
         console.log('SUPABASE RESULT:', { data, error })
+
+        if (data && data.length > 0) {
+          customerId = data[0].id
+        }
+      }
+
+      // Send payment confirmation for subscriptions
+      if (customerId) {
+        queueEmailToCustomer(customerId, 'payment_success', {
+          productName: 'Měsíční předplatné WEBDO24',
+          amount: `${(session.amount_total ?? 0) / 100}`,
+          currency: (session.currency ?? 'czk').toUpperCase(),
+        }).catch((err) => console.error('[stripe webhook] subscription email failed:', err))
       }
     }
 
