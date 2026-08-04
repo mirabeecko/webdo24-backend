@@ -1,11 +1,20 @@
 export const dynamic = 'force-dynamic'
 
 import { getProfile, getAutomations, getEmailPrefs } from '@/lib/actions/settings'
+import { getTelegramSettings, getSandboxStatus, getDomainSettings, getUpdateSuggestions } from '@/lib/actions/mvp'
 import { createClient } from '@/lib/supabase/server'
 import SettingsView from '@/components/app/SettingsView'
 
 export default async function NastaveniPage() {
-  const [profile, automations, emailPrefs] = await Promise.all([getProfile(), getAutomations(), getEmailPrefs()])
+  const [profile, automations, emailPrefs, telegram, sandbox, domain, suggestions] = await Promise.all([
+    getProfile(),
+    getAutomations(),
+    getEmailPrefs(),
+    getTelegramSettings(),
+    getSandboxStatus(),
+    getDomainSettings(),
+    getUpdateSuggestions(),
+  ])
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,6 +34,10 @@ export default async function NastaveniPage() {
       emailPrefs={emailPrefs}
       userEmail={user?.email ?? ''}
       stripeCustomerId={(project as any)?.stripe_customer_id ?? null}
+      telegram={telegram}
+      sandbox={sandbox}
+      domain={domain}
+      suggestions={suggestions ?? []}
     />
   )
 }
