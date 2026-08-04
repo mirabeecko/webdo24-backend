@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>webdo24 — Pipeline Mind Map</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #21262d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --claude: #f0883e;
+  --openai: #3fb950;
+  --accent: #388bfd;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  height: 100vh; overflow: hidden; user-select: none;
+}
+
+/* ── HEADER ── */
+#header {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 50;
+  background: rgba(13,17,23,.9);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 24px;
+  display: flex; align-items: center; gap: 16px;
+}
+#header h1 { font-size: 16px; font-weight: 700; color: var(--text); flex-shrink: 0; }
+.sep { color: var(--border); font-size: 18px; }
+.profile-tabs { display: flex; gap: 3px; }
+.ptab {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; background: none; color: var(--muted);
+  transition: all .15s;
+}
+.ptab:hover { color: var(--text); }
+.ptab.active { background: var(--surface); border-color: var(--border); color: var(--text); }
+.ptab.aa.active { color: #fbbf24; border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.06); }
+#header-hint { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+/* ── CANVAS ── */
+#canvas-wrap {
+  position: absolute; top: 53px; left: 0; right: 0; bottom: 0;
+  overflow: hidden; cursor: grab;
+}
+#canvas-wrap.dragging { cursor: grabbing; }
+#canvas {
+  position: absolute;
+  transform-origin: 0 0;
+  width: 1600px; height: 1100px;
+}
+#svg-bg {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+/* ── NODES ── */
+.node {
+  position: absolute;
+  border-radius: 16px;
+  border: 1.5px solid;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.node:hover { transform: scale(1.04); z-index: 10; }
+.node-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.node-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; flex-shrink: 0;
+}
+.node-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.node-fn { font-size: 9px; font-family: monospace; color: var(--muted); margin-left: auto; flex-shrink: 0; }
+.node-body { padding: 10px 14px; flex: 1; }
+.model-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.model-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid;
+}
+.mb-claude { background: rgba(240,136,62,.12); border-color: rgba(240,136,62,.35); color: var(--claude); }
+.mb-openai { background: rgba(63,185,80,.12); border-color: rgba(63,185,80,.35); color: var(--openai); }
+.mb-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.tok-badge {
+  font-size: 10px; color: var(--muted);
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px;
+}
+.node-io { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.io-tag {
+  font-size: 9px; padding: 1px 6px; border-radius: 4px;
+  font-family: monospace;
+}
+.io-in  { background: rgba(56,139,253,.1);  border: 1px solid rgba(56,139,253,.2);  color: #388bfd; }
+.io-out { background: rgba(63,185,80,.1);   border: 1px solid rgba(63,185,80,.2);   color: #3fb950; }
+.fallback-row {
+  margin-top: 5px; font-size: 9px; color: var(--muted);
+  display: flex; align-items: center; gap: 4px;
+}
+.fallback-row span { color: #f0883e; font-family: monospace; }
+
+/* node type colors */
+.nc-1 { background: #0e1825; border-color: #1c4a8a; }
+.nc-2 { background: #140d24; border-color: #3d2080; }
+.nc-3 { background: #1a0f06; border-color: #7a4010; }
+.nc-4 { background: #0a1a10; border-color: #1a5c30; }
+.nc-5 { background: #16080c; border-color: #6a1428; }
+.nc-out { background: #0d1a0e; border-color: #2d7a3a; }
+
+.nc-1 .node-num { background: rgba(56,139,253,.2); color: #388bfd; }
+.nc-2 .node-num { background: rgba(188,140,255,.2); color: #bc8cff; }
+.nc-3 .node-num { background: rgba(240,136,62,.2); color: #f0883e; }
+.nc-4 .node-num { background: rgba(63,185,80,.2); color: #3fb950; }
+.nc-5 .node-num { background: rgba(255,123,114,.2); color: #ff7b72; }
+
+/* ── INPUT NODE ── */
+.input-node {
+  position: absolute;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 12px 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.input-node .in-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 4px; }
+.field-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.field-tag { font-size: 9px; padding: 2px 7px; border-radius: 4px; background: rgba(56,139,253,.08); border: 1px solid rgba(56,139,253,.2); color: #388bfd; font-family: monospace; }
+
+/* ── OUTPUT NODE ── */
+.output-node {
+  position: absolute;
+  background: rgba(63,185,80,.06); border: 1.5px solid rgba(63,185,80,.3);
+  border-radius: 12px; padding: 12px 18px;
+}
+
+/* ── PARALLEL LABEL ── */
+.parallel-badge {
+  position: absolute;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px;
+  font-size: 10px; color: var(--muted); white-space: nowrap;
+}
+
+/* ── QA BADGE ── */
+.qa-badge {
+  position: absolute;
+  border: 1.5px dashed #334155;
+  border-radius: 16px; padding: 10px 16px;
+  font-size: 11px; color: #475569;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── MODAL ── */
+#modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.8);
+  z-index: 200; display: none; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+#modal.open { display: flex; }
+#modal-box {
+  background: #161b22; border: 1px solid #30363d;
+  border-radius: 14px; width: min(760px, 94vw); max-height: 88vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7);
+}
+#modal-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 1px solid #21262d;
+}
+#modal-title { font-size: 14px; font-weight: 700; flex: 1; }
+#modal-close {
+  background: none; border: none; color: #8b949e;
+  font-size: 20px; cursor: pointer; padding: 2px 8px; border-radius: 6px;
+}
+#modal-close:hover { background: #21262d; color: var(--text); }
+#modal-body { padding: 18px; overflow-y: auto; flex: 1; }
+.modal-section { margin-bottom: 16px; }
+.modal-sec-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #8b949e; margin-bottom: 6px; }
+.pbox {
+  background: #0d1117; border: 1px solid #21262d; border-radius: 8px;
+  padding: 12px 14px; font-family: 'Consolas', monospace; font-size: 11px;
+  color: #c9d1d9; line-height: 1.7; white-space: pre-wrap; max-height: 240px; overflow-y: auto;
+}
+.pbox .kw { color: #bc8cff; }
+.pbox .vr { color: #f0883e; }
+.pbox .cm { color: #6e7681; }
+.pbox .str { color: #3fb950; }
+.io-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.io-col-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #8b949e; margin-bottom: 6px; }
+.io-items { display: flex; flex-direction: column; gap: 3px; }
+.io-item { font-size: 11px; font-family: monospace; padding: 3px 0; color: #c9d1d9; }
+.io-item::before { content: '•  '; color: #8b949e; }
+
+/* ── CONTROLS ── */
+#controls {
+  position: fixed; bottom: 16px; right: 16px; z-index: 50;
+  display: flex; gap: 6px;
+}
+.ctrl-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted); font-size: 16px; width: 34px; height: 34px;
+  border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.ctrl-btn:hover { color: var(--text); border-color: #388bfd; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div id="header">
+  <h1>webdo24 · AI Pipeline</h1>
+  <div class="sep">·</div>
+  <div class="profile-tabs">
+    <button class="ptab aa" id="tab-AA" onclick="setProfile('AA')">⭐ AA — Maximum</button>
+    <button class="ptab" id="tab-A" onclick="setProfile('A')">A — Top Kvalita</button>
+    <button class="ptab active" id="tab-B" onclick="setProfile('B')">B — Balanced</button>
+    <button class="ptab" id="tab-C" onclick="setProfile('C')">C — Lowcost</button>
+  </div>
+  <span id="header-hint">Klikni na uzel pro prompt · táhni pro posun</span>
+</div>
+
+<!-- CANVAS -->
+<div id="canvas-wrap">
+  <div id="canvas">
+    <svg id="svg-bg"></svg>
+
+    <!-- INPUT -->
+    <div class="input-node" style="left:440px;top:30px;width:720px">
+      <div>
+        <div class="in-label">Vstup · POST /intake nebo POST /ops/pipeline-test</div>
+        <div class="field-tags">
+          <span class="field-tag">company_name</span>
+          <span class="field-tag">website_type</span>
+          <span class="field-tag">contact_email</span>
+          <span class="field-tag">description</span>
+          <span class="field-tag">requested_pages[]</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 1 — BRIEF -->
+    <div class="node nc-1" id="n1" style="width:280px;left:560px;top:145px" onclick="showModal('brief')">
+      <div class="node-header">
+        <div class="node-num">1</div>
+        <div class="node-title">BRIEF GENERATION</div>
+        <div class="node-fn">generateWebsiteBrief()</div>
+      </div>
+      <div class="node-body">
+        <div class="model-row">
+          <span class="model-badge" id="m1-badge"></span>
+          <span class="tok-badge" id="m1-tok"></span>
+        </div>
+        <div class="fallback-row">fallback: <span id="m1-fb"></span></div>
+        <div class="node-io" style="margin-top:8px">
+          <span class="io-tag io-in">normalized_input</span>
+          <span class="io-tag io-out">project_summary</span>
+          <span class="io-tag io-out">target_audience[]</span>
+          <span class="io-tag io-out">seo_keywords[]</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 — SITE PROMPT -->
+    <div class="node nc-2" id="n2" style="width:280px;left:560px;top:330px" onclick="showModal('site_prompt')">
+      <div class="node-header">
+        <div class="node-num">2</div>
+        <div class="node-title">SITE PROMPT GENERATION</div>
+        <div class="node-fn">generateSitePromptFromBrief()</div>
+      </div>
+      <div class="node-body">
+        <div class="model-row">
+          <span class="model-badge" id="m2-badge"></span>
+          <span class="tok-badge" id="m2-tok"></span>
+        </div>
+        <div class="fallback-row">fallback: <span id="m2-fb"></span></div>
+        <div class="node-io" style="margin-top:8px">
+          <span class="io-tag io-in">generated_brief (K1)</span>
+          <span class="io-tag io-out">color_palette[]</span>
+          <span class="io-tag io-out">font_style</span>
+          <span class="io-tag io-out">generator_prompt</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 — POLISH -->
+    <div class="node nc-3" id="n3" style="width:280px;left:560px;top:530px" onclick="showModal('polish')">
+      <div class="node-header">
+        <div class="node-num">3</div>
+        <div class="node-title">CONTENT POLISHING</div>
+        <div class="node-fn">polishContent()</div>
+      </div>
+      <div class="node-body">
+        <div class="model-row">
+          <span class="model-badge" id="m3-badge"></span>
+          <span class="tok-badge" id="m3-tok"></span>
+        </div>
+        <div class="fallback-row">fallback: <span id="m3-fb"></span></div>
+        <div class="node-io" style="margin-top:8px">
+          <span class="io-tag io-in">site_prompt_data (K2)</span>
+          <span class="io-tag io-out">polished_data (stejná JSON struktura)</span>
+          <span class="io-tag io-out">opravená čeština + diakritika</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PARALLEL LABEL -->
+    <div class="parallel-badge" style="left:560px;top:726px">⚡ kroky 4 a 5 běží paralelně po dokončení kroku 3</div>
+
+    <!-- STEP 4 — SEO -->
+    <div class="node nc-4" id="n4" style="width:280px;left:230px;top:770px" onclick="showModal('seo')">
+      <div class="node-header">
+        <div class="node-num">4</div>
+        <div class="node-title">SEO GENERATION</div>
+        <div class="node-fn">generateSeo()</div>
+      </div>
+      <div class="node-body">
+        <div class="model-row">
+          <span class="model-badge" id="m4-badge"></span>
+          <span class="tok-badge" id="m4-tok"></span>
+        </div>
+        <div class="fallback-row">fallback: <span id="m4-fb"></span></div>
+        <div class="node-io" style="margin-top:8px">
+          <span class="io-tag io-in">polished_data (K3)</span>
+          <span class="io-tag io-out">meta_title / description</span>
+          <span class="io-tag io-out">schema.json</span>
+          <span class="io-tag io-out">robots.txt · sitemap.xml</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5 — HTML -->
+    <div class="node nc-5" id="n5" style="width:280px;left:890px;top:770px" onclick="showModal('html')">
+      <div class="node-header">
+        <div class="node-num">5</div>
+        <div class="node-title">HTML GENERATION</div>
+        <div class="node-fn">generateHtmlFromPolished()</div>
+      </div>
+      <div class="node-body">
+        <div class="model-row">
+          <span class="model-badge" id="m5-badge"></span>
+          <span class="tok-badge" id="m5-tok"></span>
+        </div>
+        <div class="fallback-row">fallback: <span id="m5-fb"></span></div>
+        <div class="node-io" style="margin-top:8px">
+          <span class="io-tag io-in">polished_data (K3)</span>
+          <span class="io-tag io-out">index.html (full page)</span>
+          <span class="io-tag io-out">Lighthouse-ready · responsive</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="output-node" style="left:440px;top:1000px;width:520px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#3fb950;margin-bottom:8px">Finální výstupy</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:4px">WEB</div>
+          <div style="display:flex;gap:4px"><span class="io-tag io-out">index.html</span></div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:4px">SEO</div>
+          <div style="display:flex;gap:4px">
+            <span class="io-tag io-out">robots.txt</span>
+            <span class="io-tag io-out">sitemap.xml</span>
+            <span class="io-tag io-out">schema.json</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:4px">NOTIFIKACE</div>
+          <div style="display:flex;gap:4px"><span class="io-tag io-out">email "Website Ready"</span></div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--muted);margin-bottom:4px">METRIKY</div>
+          <div style="display:flex;gap:4px">
+            <span class="io-tag io-out">tokens</span>
+            <span class="io-tag io-out">cost USD</span>
+            <span class="io-tag io-out">duration/step</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QA (not implemented) -->
+    <div class="qa-badge" style="left:1240px;top:770px;width:220px">
+      <span style="font-size:16px">🔬</span>
+      <div>
+        <div style="font-size:11px;color:#475569;font-weight:600">6. QA AUDITOR</div>
+        <div style="font-size:9px;margin-top:2px">v konfiguraci · zatím neimplementován</div>
+        <div style="font-size:9px;margin-top:2px">model: <span id="m6-badge-text" style="color:#555;font-family:monospace"></span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div id="controls">
+  <div class="ctrl-btn" onclick="zoom(1.12)">+</div>
+  <div class="ctrl-btn" onclick="zoom(0.89)">−</div>
+  <div class="ctrl-btn" onclick="resetView()" title="Reset">⊙</div>
+</div>
+
+<!-- MODAL -->
+<div id="modal" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box">
+    <div id="modal-head">
+      <div id="modal-title"></div>
+      <button id="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ── PROFILE DATA ──────────────────────────────────────────────────────────
+const PROFILES = {
+  AA: {
+    models:   { brief:'claude-opus-4-7', site_prompt:'claude-opus-4-7', polish:'gpt-4.1',       seo:'gpt-4o-mini', html:'claude-opus-4-7', qa:'claude-opus-4-7' },
+    fallback: { brief:'claude-sonnet-4-6', site_prompt:'claude-sonnet-4-6', polish:'gpt-4o', seo:'gpt-4o-mini', html:'claude-sonnet-4-6', qa:'claude-sonnet-4-6' },
+    tokens:   { brief:8192, site_prompt:16384, polish:16384, seo:4096, html:32000, qa:4096 }
+  },
+  A: {
+    models:   { brief:'claude-opus-4-7', site_prompt:'claude-sonnet-4-6', polish:'gpt-4.1',   seo:'gpt-4o-mini', html:'claude-sonnet-4-6', qa:'gpt-4o-mini' },
+    fallback: { brief:'claude-sonnet-4-6', site_prompt:'gpt-4o', polish:'gpt-4o', seo:'gpt-4o-mini', html:'gpt-4o', qa:'gpt-4o-mini' },
+    tokens:   { brief:4096, site_prompt:8192, polish:8192, seo:4096, html:16000, qa:2048 }
+  },
+  B: {
+    models:   { brief:'claude-sonnet-4-6', site_prompt:'claude-sonnet-4-6', polish:'gpt-4o', seo:'gpt-4o-mini', html:'claude-sonnet-4-6', qa:'claude-haiku-4-5' },
+    fallback: { brief:'gpt-4o', site_prompt:'gpt-4o', polish:'gpt-4o', seo:'gpt-4o-mini', html:'gpt-4o', qa:'gpt-4o-mini' },
+    tokens:   { brief:4096, site_prompt:8192, polish:8192, seo:4096, html:16000, qa:2048 }
+  },
+  C: {
+    models:   { brief:'claude-sonnet-4-6', site_prompt:'claude-sonnet-4-6', polish:'claude-sonnet-4-6', seo:'claude-sonnet-4-6', html:'claude-sonnet-4-6', qa:'claude-sonnet-4-6' },
+    fallback: { brief:'gpt-4o', site_prompt:'gpt-4o', polish:'gpt-4o', seo:'gpt-4o-mini', html:'gpt-4o', qa:'gpt-4o-mini' },
+    tokens:   { brief:2048, site_prompt:4096, polish:4096, seo:2048, html:16000, qa:2048 }
+  }
+};
+
+// ── PROMPTS ───────────────────────────────────────────────────────────────
+const PROMPTS = {
+  brief: {
+    title: '1 · BRIEF GENERATION',
+    fn: 'generateWebsiteBrief()',
+    system: `Jsi senior business analytik a web strategist.
+Vytvor hluboke strukturovane zadani pro tvorbu firemniho webu.
+
+PRAVIDLO: Odpovez POUZE cisty JSON objekt.
+Prvni znak { posledni }.`,
+    user: `Vstupni data:
+- Nazev firmy:        {company_name}
+- Typ webu:           {website_type}
+- Kontaktni email:    {contact_email}
+- Popis:              {description}
+- Pozadovane stranky: {requested_pages}
+
+→ Vygeneruj JSON se schématem:
+  project_summary
+  unique_value_propositions[]
+  trust_signals[]
+  target_audience[]
+  conversion_goals[]
+  brand_tone
+  visual_direction
+  recommended_pages[]
+  homepage_sections[]
+  cta_suggestions[]
+  content_requirements[]
+  seo_keywords[]`,
+    inputs: ['normalized_input (company_name, website_type, contact_email, description, requested_pages)'],
+    outputs: ['project_summary', 'unique_value_propositions[]', 'trust_signals[]', 'target_audience[]', 'conversion_goals[]', 'brand_tone', 'visual_direction', 'recommended_pages[]', 'homepage_sections[]', 'cta_suggestions[]', 'seo_keywords[]']
+  },
+  site_prompt: {
+    title: '2 · SITE PROMPT GENERATION',
+    fn: 'generateSitePromptFromBrief()',
+    system: `PRAVIDLO: Odpovez POUZE cisty JSON objekt.
+Prvni znak { posledni }.
+
+Priprav FINALNI ZADANI PRO GENERATOR WEBU.
+Mysli jako senior copywriter + UX designer.`,
+    user: `Vstupni data: {company_name}, {website_type},
+{contact_email}, {description}
+AI brief: {generatedBrief as JSON}
+
+→ Vygeneruj JSON:
+  project_goal
+  website_style
+  color_palette[] — KONKRETNI HEX kody (#1e40af apod.)
+  font_style — KONKRETNI Google Fonts
+    (napr. "Inter 400/700 + Playfair Display 700")
+  page_structure[]
+  homepage_copy {
+    hero_headline
+    hero_subheadline
+    primary_cta
+    secondary_cta
+  }
+  section_copy[]
+  image_guidance[]
+  technical_requirements[]
+  generator_prompt — min. 5 vět, detailní zadání
+    pro HTML generátor`,
+    inputs: ['source_input', 'generated_brief (Krok 1)'],
+    outputs: ['project_goal', 'website_style', 'color_palette[] — HEX kódy', 'font_style — Google Fonts', 'page_structure[]', 'homepage_copy{hero_headline, hero_subheadline, primary_cta, secondary_cta}', 'section_copy[]', 'image_guidance[]', 'generator_prompt (min. 5 vět)']
+  },
+  polish: {
+    title: '3 · CONTENT POLISHING',
+    fn: 'polishContent()',
+    system: `Uprav texty firemniho webu do spravne a prirozene cestiny.
+
+- Dopln ceskou diakritiku, oprav gramatiku a interpunkci
+- Zachovej PRESNE STEJNOU JSON strukturu a nazvy klicu
+- Odstrán robotické formulace — text má být přirozený
+  a profesionální
+- PRAVIDLO: POUZE cisty JSON objekt`,
+    user: `Vstup: {sitePromptData as JSON}
+
+→ Vrať identickou JSON strukturu
+  s opravenou češtinou`,
+    inputs: ['site_prompt_data (Krok 2)'],
+    outputs: ['polished_data — stejná JSON struktura s opravenými texty', 'Opravená diakritika + profesionální styl bez robotických formulací']
+  },
+  seo: {
+    title: '4 · SEO GENERATION',
+    fn: 'generateSeo()',
+    system: `Vytvor SEO vystup pro firemni web.
+
+- PRAVIDLO: POUZE cisty JSON objekt
+- Texty piš přirozeně česky
+- meta_title ≤ 60 znaků
+- meta_description 140–155 znaků s CTA
+- Schema: LocalBusiness nebo Organization dle kontextu
+- sitemap_xml jako text XML
+- robots_txt jako text`,
+    user: `Project slug: {slug}
+Vstupni polished data: {polishedData as JSON}
+
+→ pages[].meta_title
+  pages[].meta_description
+  og_* / twitter_*
+  schema_type
+  schema_data {}
+  robots_txt
+  sitemap_xml`,
+    inputs: ['polished_data (Krok 3)', 'project_slug'],
+    outputs: ['pages[].meta_title (≤60 znaků)', 'pages[].meta_description (140–155 znaků s CTA)', 'og_* / twitter_* tagy', 'schema_data{} (LocalBusiness/Organization)', 'robots_txt', 'sitemap_xml']
+  },
+  html: {
+    title: '5 · HTML GENERATION',
+    fn: 'generateHtmlFromPolished()',
+    system: `Master SEO & HTML Prompt (v2026)
+Role: Expertní Technical SEO Auditor + Senior Frontend Developer.
+Cíl: HTML dokument s 100/100 Lighthouse skóre.
+
+MODUL 1 — Sémantická architektura:
+  • Právě jedna <h1>, hierarchie H1→H2→H3
+  • Každý nadpis 20–65 znaků, nesmí končit tečkou
+  • ŽÁDNÉ <div> pro strukturu
+    → použij <header><nav><main><section><article><footer>
+
+MODUL 2 — Meta-Data:
+  • <title> 55–60 znaků, klíčové slovo na začátku
+  • <meta name="description"> přesně 140–155 znaků s CTA
+  • <meta name="robots" content="index, follow">
+  • <link rel="canonical">, favicon, apple-touch-icon
+  • Open Graph: og:title, og:description, og:type,
+    og:url, og:image
+  • Google Fonts @import dle font_style
+  • CSS proměnné --color-*, --font-*
+
+MODUL 3 — Schema.org JSON-LD:
+  • <script type="application/ld+json"> v <head>
+  • Entity: WebPage + LocalBusiness/Organization
+  • Vlastnosti: name, description, url, logo,
+    image, email
+
+MODUL 4 — Multimédia & Přístupnost:
+  • Každý <img>: alt, width, height, loading="lazy"
+  • Hero obrázek: loading="eager" fetchpriority="high"
+  • Kontrast min. 4.5:1
+
+SEKCE: sticky nav → hero → služby → výhody
+→ reference → CTA → kontakt → footer
+
+VÝSTUP: začíná <!DOCTYPE html>,
+inline CSS+JS, žádný Lorem ipsum`,
+    user: `Project slug: {slug}
+Vstupni data (barvy, font, texty, generator_prompt):
+{polishedData as JSON}
+
+→ Vygeneruj kompletní Lighthouse-ready
+  HTML/CSS/JS dokument`,
+    inputs: ['polished_data (Krok 3)', 'project_slug'],
+    outputs: ['index.html — kompletní Lighthouse-ready HTML/CSS/JS', 'One-page responzivní web', 'Inline CSS + JS (žádné extreními závislosti)', '100/100 Lighthouse cíl']
+  }
+};
+
+// ── MODEL BADGE HELPERS ───────────────────────────────────────────────────
+function mcls(mid) { return (mid||'').startsWith('claude') ? 'mb-claude' : 'mb-openai'; }
+function shortModel(mid) {
+  return mid
+    .replace('claude-opus-4-7','Opus 4.7')
+    .replace('claude-sonnet-4-6','Sonnet 4.6')
+    .replace('claude-haiku-4-5-20251001','Haiku 4.5')
+    .replace('claude-haiku-4-5','Haiku 4.5')
+    .replace('claude-sonnet-4-6','Sonnet 4.6')
+    .replace('gpt-4o-mini','GPT-4o mini')
+    .replace('gpt-4.1','GPT-4.1')
+    .replace('gpt-4o','GPT-4o');
+}
+function fmtTok(t) { return t >= 1000 ? (t/1000).toFixed(0)+'K tok' : t+' tok'; }
+
+function setBadge(id, mid, tok) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'model-badge ' + mcls(mid);
+  el.innerHTML = `<span class="mb-dot"></span>${shortModel(mid)}`;
+}
+
+// ── SET PROFILE ────────────────────────────────────────────────────────────
+let currentProfile = 'B';
+function setProfile(p) {
+  currentProfile = p;
+  ['AA','A','B','C'].forEach(x => {
+    document.getElementById('tab-'+x).classList.toggle('active', x===p);
+  });
+  const P = PROFILES[p];
+  const steps = ['brief','site_prompt','polish','seo','html'];
+  steps.forEach((key,i) => {
+    const n = i+1;
+    setBadge(`m${n}-badge`, P.models[key]);
+    document.getElementById(`m${n}-tok`).textContent = fmtTok(P.tokens[key]);
+    document.getElementById(`m${n}-fb`).textContent = shortModel(P.fallback[key]);
+  });
+  document.getElementById('m6-badge-text').textContent = shortModel(P.models.qa);
+}
+
+// ── SVG ARROWS ────────────────────────────────────────────────────────────
+function drawArrows() {
+  const svg = document.getElementById('svg-bg');
+  svg.innerHTML = '';
+
+  // arrowhead marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `
+    <marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#30363d"/>
+    </marker>
+    <marker id="arr-par" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#388bfd40"/>
+    </marker>
+  `;
+  svg.appendChild(defs);
+
+  const line = (x1,y1,x2,y2,dash,marker='arr') => {
+    const mx=(x1+x2)/2;
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+    p.setAttribute('stroke', dash ? '#388bfd40' : '#30363d');
+    p.setAttribute('stroke-width', '1.5');
+    p.setAttribute('fill','none');
+    p.setAttribute('marker-end', `url(#${marker})`);
+    if(dash) p.setAttribute('stroke-dasharray','5,3');
+    svg.appendChild(p);
+  };
+
+  // Input → Step 1 (straight down)
+  line(700, 80, 700, 145);
+  // Step 1 → Step 2
+  line(700, 250, 700, 330);
+  // Step 2 → Step 3
+  line(700, 435, 700, 530);
+  // Step 3 → Step 4 (fork left)
+  line(700, 640, 370, 770, true, 'arr-par');
+  // Step 3 → Step 5 (fork right)
+  line(700, 640, 1030, 770, true, 'arr-par');
+  // Step 4 → Output
+  line(370, 890, 600, 1000, false);
+  // Step 5 → Output
+  line(1030, 890, 820, 1000, false);
+
+  // gradient glow line for parallel
+  svg.innerHTML += `
+    <defs>
+      <linearGradient id="par-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#388bfd" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#388bfd" stop-opacity="0.05"/>
+      </linearGradient>
+    </defs>`;
+}
+
+// ── MODAL ──────────────────────────────────────────────────────────────────
+function colorP(txt) {
+  return txt
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\{[^}]+\}/g, s=>`<span class="vr">${s}</span>`)
+    .replace(/(PRAVIDLO|MODUL \d+[^:]*:|→|•)/g, s=>`<span class="kw">${s}</span>`)
+    .replace(/(VÝSTUP:|Vygeneruj JSON|Vrať)/g, s=>`<span class="str">${s}</span>`);
+}
+
+function showModal(key) {
+  const d = PROMPTS[key];
+  const P = PROFILES[currentProfile];
+  const mid = P.models[key], fb = P.fallback[key], tok = P.tokens[key];
+
+  document.getElementById('modal-title').innerHTML =
+    `<span style="color:#8b949e;margin-right:8px">${d.fn}</span>${d.title}`;
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="modal-section">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <span class="model-badge ${mcls(mid)}" style="font-size:12px"><span class="mb-dot"></span>${shortModel(mid)}</span>
+        <span class="tok-badge">${fmtTok(tok)}</span>
+        <span style="font-size:11px;color:var(--muted)">fallback: <span style="color:#f0883e;font-family:monospace">${shortModel(fb)}</span></span>
+      </div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-sec-label">System Prompt</div>
+      <div class="pbox">${colorP(d.system)}</div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-sec-label">User Prompt Template</div>
+      <div class="pbox">${colorP(d.user)}</div>
+    </div>
+    <div class="io-grid">
+      <div>
+        <div class="io-col-label">Vstup</div>
+        <div class="io-items">${d.inputs.map(x=>`<div class="io-item" style="color:#388bfd">${x}</div>`).join('')}</div>
+      </div>
+      <div>
+        <div class="io-col-label">Výstup</div>
+        <div class="io-items">${d.outputs.map(x=>`<div class="io-item" style="color:#3fb950">${x}</div>`).join('')}</div>
+      </div>
+    </div>`;
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+// ── PAN & ZOOM ─────────────────────────────────────────────────────────────
+let scale = 0.8, tx = 120, ty = 20;
+let dragging = false, lastX, lastY;
+const wrap = document.getElementById('canvas-wrap');
+const canvas = document.getElementById('canvas');
+
+function applyTransform() {
+  canvas.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+}
+wrap.addEventListener('mousedown', e => {
+  if (e.target.closest('.node') || e.target.closest('.ctrl-btn')) return;
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  wrap.classList.add('dragging');
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  tx += e.clientX - lastX; ty += e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  applyTransform();
+});
+document.addEventListener('mouseup', () => { dragging = false; wrap.classList.remove('dragging'); });
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.1 : 0.91;
+  scale = Math.min(Math.max(scale * f, 0.25), 2.5);
+  applyTransform();
+}, { passive: false });
+
+function zoom(f) { scale = Math.min(Math.max(scale*f, 0.25), 2.5); applyTransform(); }
+function resetView() { scale = 0.8; tx = 120; ty = 20; applyTransform(); }
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+drawArrows();
+setProfile('B');
+applyTransform();
+</script>
+</body>
+</html>

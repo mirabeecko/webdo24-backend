@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Globe,
   Smartphone,
@@ -24,7 +24,7 @@ import {
   getWebsiteContent,
   getTestimonials,
   getServices,
-  getProjectUrl,
+  getProject,
   updateWebsiteContent,
   createTestimonial,
   deleteTestimonial,
@@ -44,6 +44,26 @@ interface ContentItem {
   label: string
   content_type: string
   content_value: string
+}
+
+interface Testimonial {
+  id: string
+  customer_name: string
+  rating: number
+  text: string
+}
+
+interface Service {
+  id: string
+  title: string
+  description?: string
+  price?: string
+}
+
+interface Snapshot {
+  id: string
+  name: string
+  created_at: string
 }
 
 const DEFAULT_SECTIONS = [
@@ -78,14 +98,11 @@ const DEFAULT_SECTIONS = [
   },
 ]
 
-function EditableField({ item, onSave }: { item: ContentItem; onSave: (id: string, val: string) => void }) {
+function EditableField({ item, projectId, onSave }: { item: ContentItem; projectId: string; onSave: (id: string, val: string) => void }) {
   const [editing, setEditing] = useState(false)
   const [localValue, setLocalValue] = useState(item.content_value)
   const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    setLocalValue(item.content_value)
-  }, [item.content_value, item.id])
+  const [uploading, setUploading] = useState(false)
 
   const handleSave = () => {
     if (localValue !== item.content_value) {
@@ -107,6 +124,32 @@ function EditableField({ item, onSave }: { item: ContentItem; onSave: (id: strin
     }
   }
 
+  const handleImageUpload = async (file: File) => {
+    if (!projectId) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('project_id', projectId)
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const result = await res.json()
+
+      if (!res.ok || !result.file?.file_url) {
+        throw new Error(result.error || 'Upload failed')
+      }
+
+      setLocalValue(result.file.file_url)
+      onSave(item.id, result.file.file_url)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+    } catch (err: unknown) {
+      alert('Chyba při nahrávání fotky: ' + (err instanceof Error ? err.message : 'Neznámá chyba'))
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <div className="group">
       <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">{item.label}</label>
@@ -115,9 +158,36 @@ function EditableField({ item, onSave }: { item: ContentItem; onSave: (id: strin
           {item.content_type === 'textarea' ? (
             <textarea value={localValue} onChange={(e) => setLocalValue(e.target.value)} onKeyDown={handleKeyDown} onBlur={handleSave} autoFocus className="w-full px-3 py-2 rounded-lg border border-blue-300 bg-blue-50/30 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none" rows={3} />
           ) : item.content_type === 'image' ? (
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-300 bg-blue-50/30">
-              <div className="h-16 w-16 rounded-lg bg-gray-200 flex items-center justify-center"><Image className="h-6 w-6 text-gray-400" /></div>
-              <div><button className="text-sm text-blue-600 font-medium hover:text-blue-700">Nahrát novou fotku</button><p className="text-xs text-gray-400 mt-0.5">nebo přetáhněte sem</p></div>
+            <div className="flex flex-col gap-3 p-3 rounded-lg border border-blue-300 bg-blue-50/30">
+              <div className="flex items-center gap-3">
+                {localValue ? (
+                  <img src={localValue} alt="Náhled" className="h-16 w-16 rounded-lg object-cover border border-gray-200" />
+                ) : (
+                  <div className="h-16 w-16 rounded-lg bg-gray-200 flex items-center justify-center"><Image className="h-6 w-6 text-gray-400" /></div>
+                )}
+                <div>
+                  <label className="text-sm text-blue-600 font-medium hover:text-blue-700 cursor-pointer">
+                    {uploading ? 'Nahrávání...' : 'Nahrát novou fotku'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageUpload(file)
+                      }}
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400 mt-0.5">JPEG, PNG, WebP</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditing(false)}
+                className="self-start text-xs text-gray-500 hover:text-gray-700"
+              >
+                Zavřít
+              </button>
             </div>
           ) : (
             <input type={item.content_type === 'phone' ? 'tel' : 'text'} value={localValue} onChange={(e) => setLocalValue(e.target.value)} onKeyDown={handleKeyDown} onBlur={handleSave} autoFocus className="w-full px-3 py-2 rounded-lg border border-blue-300 bg-blue-50/30 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-blue-200" />
@@ -127,7 +197,14 @@ function EditableField({ item, onSave }: { item: ContentItem; onSave: (id: strin
       ) : (
         <button onClick={() => setEditing(true)} className="w-full text-left px-3 py-2 rounded-lg border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-all group-hover:border-gray-100">
           {item.content_type === 'image' ? (
-            <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center"><Image className="h-4 w-4 text-gray-400" /></div><span className="text-sm text-gray-500">Klikněte pro změnu fotky</span></div>
+            <div className="flex items-center gap-3">
+              {item.content_value ? (
+                <img src={item.content_value} alt="Náhled" className="h-10 w-10 rounded-lg object-cover border border-gray-200" />
+              ) : (
+                <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center"><Image className="h-4 w-4 text-gray-400" /></div>
+              )}
+              <span className="text-sm text-gray-500">{item.content_value ? 'Klikněte pro změnu fotky' : 'Klikněte a přidejte fotku'}</span>
+            </div>
           ) : (
             <span className="text-sm text-[#0F172A]">{item.content_value || <span className="text-gray-400 italic">Klikněte a vyplňte...</span>}</span>
           )}
@@ -141,13 +218,14 @@ export default function WebEditorView() {
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [expandedSections, setExpandedSections] = useState<string[]>(['hero', 'contact', 'about', 'services', 'testimonials'])
   const [content, setContent] = useState<ContentItem[]>([])
-  const [testimonials, setTestimonials] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
-  const [snapshots, setSnapshots] = useState<any[]>([])
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
   const [publishUrl, setPublishUrl] = useState('')
   const [projectUrl, setProjectUrl] = useState('')
+  const [projectId, setProjectId] = useState('')
   const [restoring, setRestoring] = useState(false)
 
   const [showServiceForm, setShowServiceForm] = useState(false)
@@ -155,17 +233,28 @@ export default function WebEditorView() {
   const [newService, setNewService] = useState({ title: '', description: '', price: '' })
   const [newTestimonial, setNewTestimonial] = useState({ customer_name: '', rating: 5, text: '' })
 
-  async function reloadAll() {
-    const [c, t, s, sn, url] = await Promise.all([getWebsiteContent(), getTestimonials(), getServices(), getSnapshots(), getProjectUrl()])
-    const mapped = (c || []).map((item: any) => ({ ...item, label: getLabelForKey(item.section_key) }))
+  const reloadAll = React.useCallback(async () => {
+    const [c, t, s, sn, project] = await Promise.all([getWebsiteContent(), getTestimonials(), getServices(), getSnapshots(), getProject()])
+    const mapped = (c || []).map((item: Record<string, unknown>) => ({ ...item, label: getLabelForKey(item.section_key as string) })) as ContentItem[]
     setContent(mapped)
     setTestimonials(t || [])
     setServices(s || [])
     setSnapshots(sn || [])
-    if (url) setProjectUrl(url)
-  }
+    if (project) {
+      setProjectUrl(project.url)
+      setProjectId(project.id)
+    }
+  }, [])
 
-  useEffect(() => { reloadAll().then(() => setLoading(false)) }, [])
+  useEffect(() => {
+    let mounted = true
+    const init = async () => {
+      await reloadAll()
+      if (mounted) setLoading(false)
+    }
+    init()
+    return () => { mounted = false }
+  }, [reloadAll])
 
   function getLabelForKey(key: string) {
     const labels: Record<string, string> = { hero_title: 'Nadpis', hero_subtitle: 'Podnadpis', hero_image: 'Hlavní fotka', phone: 'Telefon', email: 'Email', address: 'Adresa', hours: 'Otevírací doba', about_text: 'Text' }
@@ -183,8 +272,8 @@ export default function WebEditorView() {
     try {
       const result = await publishWebsite()
       if (result.success) setPublishUrl(result.url)
-    } catch (e: any) {
-      alert('Chyba při publikování: ' + e.message)
+    } catch (e: unknown) {
+      alert('Chyba při publikování: ' + (e instanceof Error ? e.message : 'Neznámá chyba'))
     } finally {
       setPublishing(false)
     }
@@ -196,8 +285,8 @@ export default function WebEditorView() {
     try {
       await restoreSnapshot(id)
       await reloadAll()
-    } catch (e: any) {
-      alert('Chyba při obnově: ' + e.message)
+    } catch (e: unknown) {
+      alert('Chyba při obnově: ' + (e instanceof Error ? e.message : 'Neznámá chyba'))
     } finally {
       setRestoring(false)
     }
@@ -269,17 +358,17 @@ export default function WebEditorView() {
             {/* Hero */}
             <div className="rounded-xl border border-gray-100 overflow-hidden">
               <button onClick={() => toggleSection('hero')} className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-50 transition-colors"><span className="font-semibold text-sm text-[#0F172A]">Hlavní strana</span>{expandedSections.includes('hero') ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}</button>
-              {expandedSections.includes('hero') && <div className="p-4 space-y-4">{heroItems.map((item) => <EditableField key={item.section_key} item={item} onSave={handleSave} />)}</div>}
+              {expandedSections.includes('hero') && <div className="p-4 space-y-4">{heroItems.map((item) => <EditableField key={item.id} item={item} projectId={projectId} onSave={handleSave} />)}</div>}
             </div>
             {/* Contact */}
             <div className="rounded-xl border border-gray-100 overflow-hidden">
               <button onClick={() => toggleSection('contact')} className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-50 transition-colors"><span className="font-semibold text-sm text-[#0F172A]">Kontakty</span>{expandedSections.includes('contact') ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}</button>
-              {expandedSections.includes('contact') && <div className="p-4 space-y-4">{contactItems.map((item) => <EditableField key={item.section_key} item={item} onSave={handleSave} />)}</div>}
+              {expandedSections.includes('contact') && <div className="p-4 space-y-4">{contactItems.map((item) => <EditableField key={item.id} item={item} projectId={projectId} onSave={handleSave} />)}</div>}
             </div>
             {/* About */}
             <div className="rounded-xl border border-gray-100 overflow-hidden">
               <button onClick={() => toggleSection('about')} className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-50 transition-colors"><span className="font-semibold text-sm text-[#0F172A]">O nás</span>{expandedSections.includes('about') ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}</button>
-              {expandedSections.includes('about') && <div className="p-4 space-y-4">{aboutItems.map((item) => <EditableField key={item.section_key} item={item} onSave={handleSave} />)}</div>}
+              {expandedSections.includes('about') && <div className="p-4 space-y-4">{aboutItems.map((item) => <EditableField key={item.id} item={item} projectId={projectId} onSave={handleSave} />)}</div>}
             </div>
             {/* Services */}
             <div className="rounded-xl border border-gray-100 overflow-hidden">
@@ -345,7 +434,7 @@ export default function WebEditorView() {
         <div className="mt-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="font-semibold text-[#0F172A] mb-4 flex items-center gap-2"><Save className="h-5 w-5 text-gray-400" />Zálohy (posledních 4)</h2>
           <div className="space-y-2">
-            {snapshots.map((snap: any) => (
+            {snapshots.map((snap) => (
               <div key={snap.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
                 <div>
                   <p className="text-sm font-medium text-[#0F172A]">{snap.name}</p>

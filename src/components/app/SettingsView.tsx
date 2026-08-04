@@ -1,236 +1,457 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import {
-  Bell,
-  Sparkles,
-  User,
-  Smartphone,
-  Clock,
-  Star,
-  CheckCircle2,
+  User, Building2, Bell, Sparkles, Mail, Shield,
+  CreditCard, CheckCircle2, AlertCircle, Loader2,
+  ExternalLink,
 } from 'lucide-react'
-import { getProfile, updateProfile, getAutomations, toggleAutomation } from '@/lib/actions/settings'
+import { updateProfile, toggleAutomation, sendChangeEmailLink, updateEmailPrefs } from '@/lib/actions/settings'
 import EmailRoutingView from './EmailRoutingView'
+
+// ── Types ─────────────────────────────────────────────────────────
+
+interface Profile {
+  id: string
+  name: string | null
+  company: string | null
+  phone: string | null
+  ico: string | null
+  dic: string | null
+  address: string | null
+}
 
 interface Automation {
   id: string
   automation_key: string
-  title: string
-  description: string
   enabled: boolean
   template: string | null
-  icon: string
-  iconColor: string
 }
 
-const AUTOMATION_META: Record<string, { title: string; description: string; icon: string; iconColor: string }> = {
-  auto_reply: { title: 'Automatická odpověď', description: 'Zákazník dostane potvrzení, že poptávka dorazila', icon: 'mail', iconColor: 'text-blue-600 bg-blue-50' },
-  notify_owner: { title: 'Upozornění na poptávku', description: 'SMS + push notifikace při nové poptávce', icon: 'bell', iconColor: 'text-amber-600 bg-amber-50' },
-  follow_up: { title: 'Připomínka zákazníkovi', description: 'Po 24 hodinách bez odpovědi odešle připomínku', icon: 'clock', iconColor: 'text-purple-600 bg-purple-50' },
-  review_request: { title: 'Žádost o hodnocení', description: 'Po dokončení zakázky požádá zákazníka o recenzi', icon: 'star', iconColor: 'text-emerald-600 bg-emerald-50' },
+interface EmailPrefs {
+  notifications_enabled: boolean
+  marketing_enabled: boolean
 }
 
-const AI_META: Record<string, { title: string; description: string; icon: string; iconColor: string }> = {
-  ai_reply: { title: 'AI odpovědi na zprávy', description: 'Asistent navrhne odpověď na každou poptávku', icon: 'sparkles', iconColor: 'text-violet-600 bg-violet-50' },
-  ai_improve: { title: 'Vylepšování textů', description: 'AI upraví texty na webu, aby působily profesionálněji', icon: 'sparkles', iconColor: 'text-violet-600 bg-violet-50' },
-  ai_social: { title: 'Příspěvky na sociální sítě', description: 'Generování FB příspěvků z referencí', icon: 'message', iconColor: 'text-pink-600 bg-pink-50' },
+interface Props {
+  profile: Profile | null
+  automations: Automation[]
+  emailPrefs: EmailPrefs | null
+  userEmail: string
+  stripeCustomerId: string | null
 }
 
-function IconByName({ name, className }: { name: string; className?: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    mail: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>,
-    bell: <Bell className={className} />,
-    clock: <Clock className={className} />,
-    star: <Star className={className} />,
-    sparkles: <Sparkles className={className} />,
-    message: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>,
-  }
-  return <>{icons[name] || <Sparkles className={className} />}</>
+// ── Static meta ───────────────────────────────────────────────────
+
+const AUTO_META: Record<string, { title: string; desc: string; iconColor: string }> = {
+  auto_reply:     { title: 'Automatická odpověď zákazníkovi', desc: 'Zákazník dostane potvrzení, že poptávka dorazila',      iconColor: 'bg-blue-50 text-blue-600' },
+  notify_owner:  { title: 'Upozornění na novou poptávku',    desc: 'SMS + push notifikace při každé nové poptávce',          iconColor: 'bg-amber-50 text-amber-600' },
+  follow_up:     { title: 'Připomínka zákazníkovi',          desc: 'Po 24 h bez odpovědi odešle zákazníkovi připomínku',     iconColor: 'bg-purple-50 text-purple-600' },
+  review_request:{ title: 'Žádost o hodnocení',              desc: 'Po dokončení zakázky požádá zákazníka o Google recenzi', iconColor: 'bg-emerald-50 text-emerald-600' },
 }
 
-export default function SettingsView() {
-  const [profile, setProfile] = useState<any>(null)
-  const [automations, setAutomations] = useState<Automation[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saved, setSaved] = useState(false)
-  const [isPending, startTransition] = useTransition()
+const AI_META: Record<string, { title: string; desc: string }> = {
+  ai_reply:   { title: 'AI návrhy odpovědí',       desc: 'AI navrhne odpověď na každou poptávku' },
+  ai_improve: { title: 'Vylepšování textů na webu', desc: 'AI upraví texty, aby působily profesionálněji' },
+  ai_social:  { title: 'Příspěvky na sociální sítě', desc: 'AI generuje FB a IG příspěvky z referencí' },
+}
 
-  useEffect(() => {
-    async function load() {
-      const [p, a] = await Promise.all([getProfile(), getAutomations()])
-      setProfile(p)
-      // Merge with meta
-      const merged = a.map((item: any) => {
-        const meta = AUTOMATION_META[item.automation_key] || AI_META[item.automation_key] || { title: item.automation_key, description: '', icon: 'sparkles', iconColor: 'text-gray-600 bg-gray-50' }
-        return { ...item, ...meta }
-      })
-      setAutomations(merged)
-      setLoading(false)
-    }
-    load()
-  }, [])
+// ── Helpers ───────────────────────────────────────────────────────
 
-  const showSaved = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
+function Field({
+  label, value, onChange, type = 'text', placeholder, hint, required,
+}: {
+  label: string; value: string; onChange: (v: string) => void
+  type?: string; placeholder?: string; hint?: string; required?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-gray-400 focus:border-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F172A]/8 transition-colors"
+      />
+      {hint && <p className="mt-1 text-xs text-gray-400">{hint}</p>}
+    </div>
+  )
+}
 
-  const handleProfileUpdate = (field: string, value: string) => {
-    setProfile((prev: any) => ({ ...prev, [field]: value }))
-    startTransition(async () => {
-      await updateProfile({ [field]: value })
-      showSaved()
+function SectionHeader({ icon: Icon, title, sub, iconBg }: { icon: React.ComponentType<{ className?: string }>; title: string; sub: string; iconBg: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-5 pb-5 border-b border-gray-50">
+      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <h2 className="font-semibold text-[#0F172A]">{title}</h2>
+        <p className="text-xs text-gray-400">{sub}</p>
+      </div>
+    </div>
+  )
+}
+
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative h-7 w-12 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F172A]/30 ${checked ? 'bg-[#0F172A]' : 'bg-gray-200'} disabled:opacity-40`}
+    >
+      <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+    </button>
+  )
+}
+
+function SaveButton({ pending, saved, error }: { pending: boolean; saved: boolean; error: string | null }) {
+  return (
+    <div className="flex items-center gap-3 pt-2">
+      <button
+        type="submit"
+        disabled={pending}
+        className="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-6 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-40 transition-all shadow-sm"
+      >
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {pending ? 'Ukládám…' : 'Uložit změny'}
+      </button>
+      {saved && !pending && (
+        <span className="flex items-center gap-1.5 text-sm text-emerald-600">
+          <CheckCircle2 className="h-4 w-4" /> Uloženo
+        </span>
+      )}
+      {error && (
+        <span className="flex items-center gap-1.5 text-sm text-red-600">
+          <AlertCircle className="h-4 w-4" /> {error}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────
+
+export default function SettingsView({ profile, automations, emailPrefs, userEmail, stripeCustomerId }: Props) {
+  // Profile state
+  const [name, setName]       = useState(profile?.name    ?? '')
+  const [company, setCompany] = useState(profile?.company ?? '')
+  const [phone, setPhone]     = useState(profile?.phone   ?? '')
+  const [ico, setIco]         = useState(profile?.ico     ?? '')
+  const [dic, setDic]         = useState(profile?.dic     ?? '')
+  const [address, setAddress] = useState(profile?.address ?? '')
+
+  const [profilePending, startProfileTransition] = useTransition()
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [aresLoading, setAresLoading] = useState(false)
+
+  // Email change state
+  const [newEmail, setNewEmail]   = useState('')
+  const [emailPending, startEmailTransition] = useTransition()
+  const [emailMsg, setEmailMsg]   = useState<{ ok: boolean; text: string } | null>(null)
+
+  // Automations state
+  const [autos, setAutos] = useState(automations)
+  const [autoPending, startAutoTransition] = useTransition()
+
+  // Email preferences state
+  const [prefs, setPrefs] = useState<EmailPrefs>({
+    notifications_enabled: emailPrefs?.notifications_enabled ?? true,
+    marketing_enabled: emailPrefs?.marketing_enabled ?? true,
+  })
+  const [prefsPending, startPrefsTransition] = useTransition()
+
+  // Billing portal
+  const [billingLoading, setBillingLoading] = useState(false)
+
+  // ── Handlers ────────────────────────────────────────────────────
+
+  const handleProfileSave = (e: React.FormEvent) => {
+    e.preventDefault()
+    setProfileError(null)
+    setProfileSaved(false)
+    startProfileTransition(async () => {
+      try {
+        await updateProfile({ name, company, phone, ico, dic, address })
+        setProfileSaved(true)
+        setTimeout(() => setProfileSaved(false), 3000)
+      } catch (err) {
+        setProfileError(err instanceof Error ? err.message : 'Chyba při ukládání')
+      }
     })
+  }
+
+  const handleLoadFromAres = async () => {
+    const cleanIco = ico.replace(/\s/g, '')
+    if (!/^\d{8}$/.test(cleanIco)) {
+      setProfileError('Zadej platné IČO (8 číslic)')
+      return
+    }
+    setAresLoading(true)
+    setProfileError(null)
+    try {
+      const res = await fetch(`/api/ares?ico=${cleanIco}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Načtení z ARES selhalo')
+
+      if (data.name) setCompany(data.name)
+      if (data.vat_id) setDic(data.vat_id)
+      if (data.address) setAddress(data.address)
+      if (!name && data.name) setName(data.name)
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : 'Chyba při načítání z ARES')
+    } finally {
+      setAresLoading(false)
+    }
   }
 
   const handleToggle = (id: string, current: boolean) => {
-    startTransition(async () => {
-      await toggleAutomation(id, !current)
-      setAutomations((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: !current } : a)))
+    setAutos((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: !current } : a)))
+    startAutoTransition(async () => {
+      try {
+        await toggleAutomation(id, !current)
+      } catch {
+        // revert on failure
+        setAutos((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: current } : a)))
+      }
     })
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto p-4 lg:p-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-48" />
-          <div className="h-64 bg-gray-100 rounded-2xl" />
-        </div>
-      </div>
-    )
+  const handleEmailChange = (e: React.FormEvent) => {
+    e.preventDefault()
+    setEmailMsg(null)
+    startEmailTransition(async () => {
+      try {
+        await sendChangeEmailLink(newEmail)
+        setEmailMsg({ ok: true, text: `Potvrzovací email odeslán na ${newEmail}. Na novou adresu jsme poslali potvrzovací odkaz.` })
+        setNewEmail('')
+      } catch (err) {
+        setEmailMsg({ ok: false, text: err instanceof Error ? err.message : 'Chyba' })
+      }
+    })
   }
 
-  const autoItems = automations.filter((a) => AUTOMATION_META[a.automation_key])
-  const aiItems = automations.filter((a) => AI_META[a.automation_key])
+  const handleBillingPortal = async () => {
+    setBillingLoading(true)
+    try {
+      const res = await fetch('/api/stripe/customer-portal', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch {
+      // ignore
+    } finally {
+      setBillingLoading(false)
+    }
+  }
+
+  const handlePrefToggle = (key: keyof EmailPrefs) => {
+    const next = { ...prefs, [key]: !prefs[key] }
+    setPrefs(next)
+    startPrefsTransition(async () => {
+      try {
+        await updateEmailPrefs(next)
+      } catch {
+        setPrefs(prefs)
+      }
+    })
+  }
+
+  const autoItems = autos.filter((a) => AUTO_META[a.automation_key])
+  const aiItems   = autos.filter((a) => AI_META[a.automation_key])
 
   return (
-    <div className="max-w-2xl mx-auto p-4 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl lg:text-3xl font-bold text-[#0F172A]">Nastavení</h1>
-        <p className="mt-1 text-gray-500">Spravujte svůj profil a automatizace</p>
-      </div>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <div className="max-w-2xl mx-auto px-4 lg:px-6 py-10">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">Nastavení</h1>
+          <p className="mt-1.5 text-gray-500">Spravujte svůj profil, fakturaci a automatizace</p>
+        </header>
 
-      {saved && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 className="h-4 w-4" /> Uloženo
-        </div>
-      )}
+        {/* ── PROFIL ── */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+          <SectionHeader icon={User} title="Profil" sub="Základní kontaktní údaje" iconBg="bg-gray-100 text-gray-600" />
+          <form onSubmit={handleProfileSave} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Jméno a příjmení" value={name} onChange={setName} placeholder="Jan Novák" required />
+              <Field label="Telefon" value={phone} onChange={setPhone} type="tel" placeholder="+420 777 000 000" />
+            </div>
+            <Field label="Název firmy" value={company} onChange={setCompany} placeholder="Novák & Co s.r.o." />
+            <SaveButton pending={profilePending} saved={profileSaved} error={profileError} />
+          </form>
+        </section>
 
-      {/* Profile */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center">
-            <User className="h-5 w-5 text-gray-500" />
-          </div>
-          <h2 className="font-semibold text-[#0F172A]">Můj profil</h2>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">Jméno a příjmení</label>
-            <input type="text" value={profile?.name || ''} onChange={(e) => handleProfileUpdate('name', e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F172A]/10 focus:border-gray-300" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">Název firmy</label>
-            <input type="text" value={profile?.company || ''} onChange={(e) => handleProfileUpdate('company', e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F172A]/10 focus:border-gray-300" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">Telefon</label>
-              <input type="tel" value={profile?.phone || ''} onChange={(e) => handleProfileUpdate('phone', e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F172A]/10 focus:border-gray-300" />
+        {/* ── FAKTURAČNÍ ÚDAJE ── */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+          <SectionHeader icon={Building2} title="Fakturační údaje" sub="Zobrazí se na fakturách" iconBg="bg-blue-50 text-blue-600" />
+          <form onSubmit={handleProfileSave} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#0F172A]">
+                  IČO
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={ico}
+                    onChange={(e) => setIco(e.target.value)}
+                    placeholder="12345678"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-[#0F172A] placeholder:text-gray-400 focus:border-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F172A]/8 transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleLoadFromAres}
+                    disabled={aresLoading}
+                    className="shrink-0 rounded-xl border border-[#0F172A] px-3.5 py-2.5 text-sm font-semibold text-[#0F172A] hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                  >
+                    {aresLoading ? 'Načítám…' : 'ARES'}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-400">Identifikační číslo firmy</p>
+              </div>
+              <Field label="DIČ" value={dic} onChange={setDic} placeholder="CZ12345678" hint="Jen pokud jste plátce DPH" />
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">Email</label>
-              <input type="email" value={profile?.email || ''} onChange={(e) => handleProfileUpdate('email', e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0F172A]/10 focus:border-gray-300" />
-            </div>
-          </div>
-        </div>
-      </div>
+            <Field
+              label="Fakturační adresa"
+              value={address}
+              onChange={setAddress}
+              placeholder="Ulice 123, 100 00 Praha 1"
+            />
+            <SaveButton pending={profilePending} saved={profileSaved} error={profileError} />
+          </form>
+        </section>
 
-      {/* Automations */}
-      {autoItems.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Smartphone className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-[#0F172A]">Automatizace</h2>
-              <p className="text-xs text-gray-400">Nastavte jednou, zapomeňte navždy</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            {autoItems.map((item) => (
-              <div key={item.id} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${item.iconColor}`}>
-                      <IconByName name={item.icon} className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-sm text-[#0F172A]">{item.title}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
+        {/* ── AUTOMATIZACE ── */}
+        {autoItems.length > 0 && (
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+            <SectionHeader icon={Bell} title="Automatizace" sub="Nastavte jednou, zapomeňte navždy" iconBg="bg-amber-50 text-amber-600" />
+            <div className="space-y-3">
+              {autoItems.map((item) => {
+                const meta = AUTO_META[item.automation_key]
+                return (
+                  <div key={item.id} className={`flex items-center justify-between gap-4 rounded-xl p-4 border transition-colors ${item.enabled ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50'}`}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[#0F172A]">{meta.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{meta.desc}</p>
                       {item.enabled && item.template && (
-                        <div className="mt-2 p-2.5 rounded-lg bg-gray-50 text-xs text-gray-600 italic border border-gray-100">„{item.template}"</div>
+                        <p className="mt-2 text-xs text-gray-500 italic bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5">&ldquo;{item.template}&rdquo;</p>
                       )}
                     </div>
+                    <Toggle checked={item.enabled} onChange={() => handleToggle(item.id, item.enabled)} disabled={autoPending} />
                   </div>
-                  <button
-                    onClick={() => handleToggle(item.id, item.enabled)}
-                    disabled={isPending}
-                    className={`relative h-7 w-12 rounded-full transition-colors shrink-0 ${item.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}
-                  >
-                    <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${item.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Email Routing */}
-      <EmailRoutingView />
-
-      {/* AI */}
-      {aiItems.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-violet-600" />
+                )
+              })}
             </div>
-            <div>
-              <h2 className="font-semibold text-[#0F172A]">AI Asistent</h2>
-              <p className="text-xs text-gray-400">Chytrý pomocník, ne robot</p>
+          </section>
+        )}
+
+        {/* ── EMAILOVÁ OZNÁMENÍ ── */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+          <SectionHeader icon={Mail} title="Emailová oznámení" sub="Vyberte, jaké zprávy chcete dostávat" iconBg="bg-blue-50 text-blue-600" />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-4 rounded-xl p-4 border border-gray-200">
+              <div>
+                <p className="text-sm font-medium text-[#0F172A]">Notifikace o aktivitě</p>
+                <p className="text-xs text-gray-500 mt-0.5">Nové poptávky, změny na webu, stav požadavků</p>
+              </div>
+              <Toggle checked={prefs.notifications_enabled} onChange={() => handlePrefToggle('notifications_enabled')} disabled={prefsPending} />
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-xl p-4 border border-gray-200">
+              <div>
+                <p className="text-sm font-medium text-[#0F172A]">Marketingové nabídky</p>
+                <p className="text-xs text-gray-500 mt-0.5">Nové služby, tipy a akce pro váš web</p>
+              </div>
+              <Toggle checked={prefs.marketing_enabled} onChange={() => handlePrefToggle('marketing_enabled')} disabled={prefsPending} />
             </div>
           </div>
-          <div className="space-y-4">
-            {aiItems.map((item) => (
-              <div key={item.id} className="rounded-xl border border-gray-100 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${item.iconColor}`}>
-                      <IconByName name={item.icon} className="h-4 w-4" />
+        </section>
+
+        {/* ── FIREMNÍ EMAIL ── */}
+        <EmailRoutingView />
+
+        {/* ── AI ASISTENT ── */}
+        {aiItems.length > 0 && (
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+            <SectionHeader icon={Sparkles} title="AI asistent" sub="Chytrý pomocník, ne robot" iconBg="bg-violet-50 text-violet-600" />
+            <div className="space-y-3">
+              {aiItems.map((item) => {
+                const meta = AI_META[item.automation_key]
+                return (
+                  <div key={item.id} className={`flex items-center justify-between gap-4 rounded-xl p-4 border transition-colors ${item.enabled ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50'}`}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[#0F172A]">{meta.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{meta.desc}</p>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-sm text-[#0F172A]">{item.title}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
-                    </div>
+                    <Toggle checked={item.enabled} onChange={() => handleToggle(item.id, item.enabled)} disabled={autoPending} />
                   </div>
-                  <button
-                    onClick={() => handleToggle(item.id, item.enabled)}
-                    disabled={isPending}
-                    className={`relative h-7 w-12 rounded-full transition-colors shrink-0 ${item.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}
-                  >
-                    <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${item.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                  </button>
-                </div>
-              </div>
-            ))}
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── PŘEDPLATNÉ ── */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+          <SectionHeader icon={CreditCard} title="Předplatné a platby" sub="Faktury, platební metody, zrušení" iconBg="bg-emerald-50 text-emerald-600" />
+          <p className="text-sm text-gray-600 mb-5 leading-relaxed">
+            Ve Stripe zákaznickém portálu najdete přehled faktur, stav předplatného a můžete
+            kdykoli změnit platební metodu nebo předplatné zrušit.
+          </p>
+          <button
+            onClick={handleBillingPortal}
+            disabled={billingLoading || !stripeCustomerId}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+          >
+            {billingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+            Otevřít zákaznický portál
+          </button>
+          {!stripeCustomerId && (
+            <p className="mt-2 text-xs text-gray-400">Portál bude dostupný po první platbě.</p>
+          )}
+        </section>
+
+        {/* ── ZABEZPEČENÍ ── */}
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
+          <SectionHeader icon={Shield} title="Zabezpečení" sub="Přihlašovací email" iconBg="bg-red-50 text-red-500" />
+
+          <div className="mb-5 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+            <p className="text-xs text-gray-400 mb-0.5">Aktuální přihlašovací email</p>
+            <p className="text-sm font-medium text-[#0F172A]">{userEmail}</p>
           </div>
-        </div>
-      )}
+
+          <form onSubmit={handleEmailChange} className="space-y-4">
+            <Field
+              label="Nový email"
+              value={newEmail}
+              onChange={setNewEmail}
+              type="email"
+              placeholder="novy@email.cz"
+              hint="Na novou adresu pošleme potvrzovací odkaz."
+            />
+
+            {emailMsg && (
+              <div className={`flex items-start gap-2 text-sm rounded-xl p-3 ${emailMsg.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                {emailMsg.ok ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> : <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />}
+                {emailMsg.text}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={emailPending || !newEmail.trim()}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              {emailPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              Změnit přihlašovací email
+            </button>
+          </form>
+        </section>
+      </div>
     </div>
   )
 }

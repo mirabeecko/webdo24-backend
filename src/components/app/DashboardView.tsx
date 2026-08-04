@@ -15,7 +15,9 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { getDashboardData } from '@/lib/actions/dashboard'
-import UpsellCard from './UpsellCard'
+import { getDashboardTip } from '@/lib/actions/upsell'
+import DynamicUpsellCard from './DynamicUpsellCard'
+import type { ChangeRequest, ChangeStatus } from '@/types'
 
 function TrendIcon({ trend }: { trend: 'up' | 'down' | 'neutral' }) {
   if (trend === 'up') return <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
@@ -47,16 +49,45 @@ function SourceBadge({ source }: { source: string }) {
 
 function timeAgo(dateStr: string) {
   const date = new Date(dateStr)
-  const now = new Date()
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000)
   if (diff < 60) return 'před chvílí'
   if (diff < 3600) return `před ${Math.floor(diff / 60)} min`
   if (diff < 86400) return `před ${Math.floor(diff / 3600)} h`
   return `před ${Math.floor(diff / 86400)} d`
 }
 
+const STATUS_LABEL: Partial<Record<ChangeStatus, string>> = {
+  new: 'Přijato',
+  classifying: 'Analyzujeme',
+  planning: 'Plánujeme',
+  executing: 'Pracujeme',
+  preview_ready: 'Ke schválení',
+  approved: 'Schváleno',
+  publishing: 'Publikujeme',
+  published: 'Hotovo',
+  rejected: 'Zrušeno',
+  failed: 'Chyba',
+  escalated: 'V řešení',
+}
+
+const STATUS_COLOR: Partial<Record<ChangeStatus, string>> = {
+  preview_ready: 'bg-amber-50 text-amber-700 ring-amber-100',
+  published: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+  failed: 'bg-red-50 text-red-700 ring-red-100',
+  rejected: 'bg-gray-50 text-gray-500 ring-gray-100',
+}
+
+function ChangeStatusPill({ status }: { status: ChangeStatus }) {
+  const color = STATUS_COLOR[status] ?? 'bg-blue-50 text-blue-600 ring-blue-100'
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${color}`}>
+      {STATUS_LABEL[status] ?? status}
+    </span>
+  )
+}
+
 export default async function DashboardView() {
-  const data = await getDashboardData()
+  const [data, tip] = await Promise.all([getDashboardData(), getDashboardTip()])
 
   if (!data) {
     return (
@@ -72,7 +103,7 @@ export default async function DashboardView() {
     )
   }
 
-  const { customerName, customerEmail, hasProPack, companyName, project, newLeadsCount, todayViews, todayVisitors, yesterdayViews, recentLeads, testimonialsCount, avgRating } = data
+  const { customerName, customerEmail, hasProPack, project, newLeadsCount, todayViews, yesterdayViews, recentLeads, testimonialsCount, avgRating, recentChanges } = data
 
   const trend: 'up' | 'down' | 'neutral' = todayViews > yesterdayViews ? 'up' : todayViews < yesterdayViews ? 'down' : 'neutral'
   const trendValue = yesterdayViews > 0
@@ -129,62 +160,44 @@ export default async function DashboardView() {
         {stats.map((stat) => {
           const Icon = stat.icon
           return (
-            <div
-              key={stat.label}
-              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
-            >
+            <div key={stat.label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div className={`h-10 w-10 rounded-xl ${stat.color} flex items-center justify-center`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                {stat.trend && (
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
-                    <TrendIcon trend={stat.trend} />
-                  </div>
-                )}
+                <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <TrendIcon trend={stat.trend} />
+                </div>
               </div>
-              <div className="text-3xl font-bold text-[#0F172A] mb-1">
-                {stat.value}
-              </div>
+              <div className="text-3xl font-bold text-[#0F172A] mb-1">{stat.value}</div>
               <div className="text-sm text-gray-500">{stat.label}</div>
-              {stat.trendValue && (
-                <div className="mt-2 text-xs text-gray-400">{stat.trendValue}</div>
-              )}
+              {stat.trendValue && <div className="mt-2 text-xs text-gray-400">{stat.trendValue}</div>}
             </div>
           )
         })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Messages */}
-        <div className="lg:col-span-2">
+        {/* Left: Messages + Recent Changes */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Messages */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-gray-400" />
                 <h2 className="font-semibold text-[#0F172A]">Poslední zprávy</h2>
                 {newLeadsCount > 0 && (
-                  <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                    {newLeadsCount}
-                  </span>
+                  <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">{newLeadsCount}</span>
                 )}
               </div>
-              <Link
-                href="/zpravy"
-                className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-0.5"
-              >
+              <Link href="/zpravy" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-0.5">
                 Vše <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
-
             <div className="divide-y divide-gray-50">
               {recentLeads.length > 0 ? (
                 recentLeads.map((lead: any) => (
-                  <Link
-                    key={lead.id}
-                    href={`/zpravy/${lead.id}`}
-                    className="flex gap-4 p-5 hover:bg-gray-50/50 transition-colors group"
-                  >
+                  <Link key={lead.id} href={`/zpravy/${lead.id}`} className="flex gap-4 p-5 hover:bg-gray-50/50 transition-colors group">
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                       lead.status === 'new' ? 'bg-[#0F172A] text-white' : 'bg-gray-100 text-gray-500'
                     }`}>
@@ -194,13 +207,9 @@ export default async function DashboardView() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-sm text-[#0F172A]">{lead.name}</span>
                         <SourceBadge source={lead.source} />
-                        {lead.status === 'new' && (
-                          <span className="h-2 w-2 rounded-full bg-blue-500" />
-                        )}
+                        {lead.status === 'new' && <span className="h-2 w-2 rounded-full bg-blue-500" />}
                       </div>
-                      <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
-                        {lead.message}
-                      </p>
+                      <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{lead.message}</p>
                       <div className="flex items-center gap-3 mt-2">
                         <span className="text-xs text-gray-400 flex items-center gap-1">
                           <Clock className="h-3 w-3" />
@@ -218,6 +227,47 @@ export default async function DashboardView() {
               )}
             </div>
           </div>
+
+          {/* Recent Change Requests */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-gray-400" />
+                <h2 className="font-semibold text-[#0F172A]">AI požadavky</h2>
+                {recentChanges.some(c => c.status === 'preview_ready') && (
+                  <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                    Ke schválení
+                  </span>
+                )}
+              </div>
+              <Link href="/pozadavky" className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-0.5">
+                Vše <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+            {recentChanges.length > 0 ? (
+              <div className="divide-y divide-gray-50">
+                {recentChanges.map((cr: ChangeRequest) => (
+                  <Link key={cr.id} href={`/pozadavky/${cr.id}`} className="flex items-center gap-4 p-4 hover:bg-gray-50/50 transition-colors group">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#0F172A] line-clamp-1">{cr.raw_input}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{timeAgo(cr.created_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <ChangeStatusPill status={cr.status} />
+                      <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center">
+                <p className="text-sm text-gray-400 mb-3">Zatím žádné požadavky.</p>
+                <Link href="/pozadavky" className="text-sm font-medium text-[#0F172A] hover:underline">
+                  Říct nám co změnit →
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column */}
@@ -230,17 +280,17 @@ export default async function DashboardView() {
             </h2>
             <div className="space-y-3">
               <Link
-                href="/zakaznici"
+                href="/pozadavky"
                 className="flex items-center justify-between w-full rounded-xl px-4 py-3.5 text-sm font-medium bg-[#0F172A] text-white hover:bg-gray-800 shadow-sm transition-all"
               >
-                ✨ Napsat nabídku
+                ✨ Upravit web
                 <ArrowUpRight className="h-4 w-4 opacity-70" />
               </Link>
               <Link
-                href="/web"
+                href="/zakaznici"
                 className="flex items-center justify-between w-full rounded-xl px-4 py-3.5 text-sm font-medium bg-gray-50 text-gray-700 hover:bg-gray-100 transition-all"
               >
-                ➕ Přidat referenci
+                📄 Napsat nabídku
                 <ArrowUpRight className="h-4 w-4 opacity-70" />
               </Link>
             </div>
@@ -263,16 +313,16 @@ export default async function DashboardView() {
               {project.status === 'deployed' ? 'Online' : project.status}
             </div>
             <Link
-              href="/web"
+              href="/pozadavky"
               className="flex items-center justify-center w-full rounded-xl bg-gray-50 text-gray-700 py-2.5 text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               Upravit web
             </Link>
           </div>
 
-          {/* Upsell */}
-          {!hasProPack && (
-            <UpsellCard customerEmail={customerEmail} projectId={project.id} />
+          {/* Dynamic Upsell */}
+          {!hasProPack && tip && (
+            <DynamicUpsellCard tip={tip} customerEmail={customerEmail} projectId={project.id} />
           )}
 
           {/* Rating Preview */}
@@ -285,10 +335,7 @@ export default async function DashboardView() {
               <span className="ml-2 text-lg font-bold text-[#0F172A]">{avgRating}</span>
             </div>
             <p className="text-xs text-gray-400 mb-4">z {testimonialsCount} hodnocení</p>
-            <Link
-              href="/web"
-              className="text-sm text-blue-600 font-medium hover:text-blue-700"
-            >
+            <Link href="/web" className="text-sm text-blue-600 font-medium hover:text-blue-700">
               Spravovat reference →
             </Link>
           </div>

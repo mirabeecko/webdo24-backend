@@ -127,10 +127,14 @@ export async function getServices() {
   return data || []
 }
 
-export async function getProjectUrl() {
+export async function getProject() {
   const project = await getCustomerProject()
   if (!project) return null
-  return project.production_url || `https://web.webdo24.cz/${project.slug}/`
+  return {
+    id: project.id,
+    slug: project.slug,
+    url: project.production_url || `https://web.webdo24.cz/${project.slug}/`,
+  }
 }
 
 export async function createService(formData: { title: string; description: string; price: string }) {

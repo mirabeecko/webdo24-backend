@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import { getPublicWebsiteData } from '@/lib/actions/web-admin'
 import { Phone, Mail, MapPin, Clock, Star } from 'lucide-react'
+import ContactForm from '@/components/public/ContactForm'
 
 export default async function PublicWebsitePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -95,27 +96,30 @@ export default async function PublicWebsitePage({ params }: { params: Promise<{ 
         <section className="max-w-5xl mx-auto px-4 py-12">
           <div className="bg-[#8b5a2b] rounded-2xl p-8 text-white text-center">
             <h2 className="text-2xl font-bold mb-6">Kontaktujte nás</h2>
-            <div className="space-y-3 max-w-md mx-auto">
-              {phone && (
-                <a href={`tel:${phone.replace(/\s/g, '')}`} className="flex items-center justify-center gap-3 text-white/90 hover:text-white transition-colors">
-                  <Phone className="h-5 w-5" /> {phone}
-                </a>
-              )}
-              {email && (
-                <a href={`mailto:${email}`} className="flex items-center justify-center gap-3 text-white/90 hover:text-white transition-colors">
-                  <Mail className="h-5 w-5" /> {email}
-                </a>
-              )}
-              {address && (
-                <div className="flex items-center justify-center gap-3 text-white/90">
-                  <MapPin className="h-5 w-5" /> {address}
-                </div>
-              )}
-              {hours && (
-                <div className="flex items-center justify-center gap-3 text-white/90">
-                  <Clock className="h-5 w-5" /> {hours}
-                </div>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left">
+              <div className="space-y-3 max-w-md mx-auto md:mx-0">
+                {phone && (
+                  <a href={`tel:${phone.replace(/\s/g, '')}`} className="flex items-center gap-3 text-white/90 hover:text-white transition-colors">
+                    <Phone className="h-5 w-5" /> {phone}
+                  </a>
+                )}
+                {email && (
+                  <a href={`mailto:${email}`} className="flex items-center gap-3 text-white/90 hover:text-white transition-colors">
+                    <Mail className="h-5 w-5" /> {email}
+                  </a>
+                )}
+                {address && (
+                  <div className="flex items-center gap-3 text-white/90">
+                    <MapPin className="h-5 w-5" /> {address}
+                  </div>
+                )}
+                {hours && (
+                  <div className="flex items-center gap-3 text-white/90">
+                    <Clock className="h-5 w-5" /> {hours}
+                  </div>
+                )}
+              </div>
+              <ContactForm projectId={project.id} />
             </div>
           </div>
         </section>

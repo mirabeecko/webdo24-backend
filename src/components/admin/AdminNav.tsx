@@ -9,6 +9,8 @@ import {
   FolderOpen,
   Users,
   Receipt,
+  Sparkles,
+  Search,
   LogOut,
 } from 'lucide-react'
 
@@ -26,8 +28,10 @@ export default function AdminNav() {
   const navItems = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/projects', label: 'Projekty', icon: FolderOpen },
+    { href: '/admin/pozadavky', label: 'Požadavky', icon: Sparkles },
     { href: '/admin/customers', label: 'Zákazníci', icon: Users },
     { href: '/admin/invoices', label: 'Faktury', icon: Receipt },
+    { href: '/admin/google-audit', label: 'Google Audit', icon: Search },
   ]
 
   return (

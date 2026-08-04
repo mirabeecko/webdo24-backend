@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/Toast'
+import type { Customer } from '@/types'
 
-export default function CustomerProfileForm({ customer }: { customer: any }) {
+export default function CustomerProfileForm({ customer }: { customer: Customer }) {
   const router = useRouter()
   const toast = useToast()
   const [form, setForm] = useState({

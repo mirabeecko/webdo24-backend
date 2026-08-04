@@ -8,7 +8,9 @@ import {
   LayoutDashboard,
   Users,
   Globe,
+  Sparkles,
   MessageSquare,
+  ShoppingBag,
   Settings,
   LogOut,
 } from 'lucide-react'
@@ -17,7 +19,9 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/zakaznici', label: 'Zákazníci', icon: Users },
   { href: '/web', label: 'Můj web', icon: Globe },
+  { href: '/pozadavky', label: 'Požadavky', icon: Sparkles },
   { href: '/zpravy', label: 'Zprávy', icon: MessageSquare },
+  { href: '/sluzby', label: 'Služby', icon: ShoppingBag },
   { href: '/nastaveni', label: 'Nastavení', icon: Settings },
 ]
 

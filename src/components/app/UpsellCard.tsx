@@ -7,9 +7,6 @@ import {
   ArrowRight,
   Loader2,
   Flame,
-  Shield,
-  MessageCircle,
-  Download,
   Sparkles,
 } from 'lucide-react'
 

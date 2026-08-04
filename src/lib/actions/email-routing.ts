@@ -51,12 +51,14 @@ function validateEmailRouting(data: {
   return errors
 }
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>
+
 // ── LOGGING HELPER ──
 async function logEvent(
-  supabase: any,
+  supabase: SupabaseClient,
   customerId: string,
   event: string,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ) {
   try {
     await supabase.from('webdo24_analytics').insert({
@@ -178,7 +180,7 @@ export async function createEmailRoutingRequest(formData: {
     })
 
     const responseText = await response.text()
-    let responseData: any = { raw: responseText }
+    let responseData: Record<string, unknown> | { raw: string } = { raw: responseText }
     try {
       responseData = JSON.parse(responseText)
     } catch {
@@ -221,20 +223,21 @@ export async function createEmailRoutingRequest(formData: {
     revalidatePath('/nastaveni')
     return { success: true, request: { ...request, status: 'waiting_verification' }, webhookSent: true }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Network or other error
-    if (!err.message?.includes('Webhook selhal')) {
+    const errorMessage = err instanceof Error ? err.message : 'Neznámá chyba'
+    if (!errorMessage.includes('Webhook selhal')) {
       await supabase
         .from('webdo24_email_routing_requests')
         .update({
           status: 'error',
-          error_message: err.message || 'Neznámá chyba při odesílání webhooku',
+          error_message: errorMessage,
         })
         .eq('id', request.id)
 
       await logEvent(supabase, customer.id, 'webhook_failed', {
         request_id: request.id,
-        error: err.message,
+        error: errorMessage,
       })
     }
 

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>webdo24-backend · Dev Status</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(ellipse at top, #1a1d27 0%, #080a10 55%);
+  color: #e8eaf0;
+  min-height: 100vh;
+}
+.wrap { max-width: 1200px; margin: 0 auto; padding: 28px 20px 48px; }
+.glass {
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+}
+.breadcrumb {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 0.85rem; color: #8b92a8; margin-bottom: 18px;
+}
+.breadcrumb a { color: #58a6ff; text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.bc-sep { opacity: .5; }
+.bc-current { color: #e8eaf0; font-weight: 500; }
+
+/* Hero */
+.hero {
+  display: flex; gap: 28px; align-items: center;
+  padding: 36px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(135deg, rgba(59,130,246,0.06), rgba(139,92,246,0.04));
+}
+.hero-ring { flex-shrink: 0; }
+.hero-main { flex: 1; min-width: 0; }
+h1 { margin: 0 0 10px; font-size: 2.2rem; letter-spacing: -0.03em; }
+.hero-desc { color: #a5aab8; font-size: 1.1rem; line-height: 1.6; margin: 0; max-width: 640px; }
+.hero-meta {
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 16px;
+}
+.status-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 13px; border-radius: 999px; font-weight: 600; font-size: 0.82rem;
+  background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25);
+}
+.status-badge.done { background: rgba(34,197,94,0.12); color: #4ade80; border-color: rgba(34,197,94,0.25); }
+.status-badge.ready { background: rgba(59,130,246,0.12); color: #60a5fa; border-color: rgba(59,130,246,0.25); }
+.status-badge.stuck { background: rgba(239,68,68,0.12); color: #f87171; border-color: rgba(239,68,68,0.25); }
+.rating { color: #fbbf24; letter-spacing: 2px; font-size: 1rem; }
+.changed-badge { color: #4ade80; font-size: 0.8rem; }
+
+/* Layout */
+.detail-grid {
+  display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 24px; padding: 28px 36px;
+}
+@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; padding: 24px; } }
+
+.info-block { margin-bottom: 28px; }
+.info-block:last-child { margin-bottom: 0; }
+h2 {
+  margin: 0 0 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: #6b7280; font-weight: 700;
+}
+h3 { margin: 0 0 10px; font-size: 1.05rem; color: #f2f4f7; }
+p.lead { font-size: 1.02rem; line-height: 1.7; color: #c5c9d6; margin: 0 0 12px; }
+p.empty { color: #5b6373; font-style: italic; margin: 0; }
+.dash-list { list-style: none; padding: 0; margin: 0; }
+.dash-list li { position: relative; padding-left: 20px; margin: 8px 0; color: #c5c9d6; line-height: 1.55; }
+.dash-list li::before { content: "—"; position: absolute; left: 0; color: #58a6ff; }
+
+/* Sidebar metadata */
+.sidebar-panel {
+  background: rgba(0,0,0,0.16); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px; padding: 22px; height: fit-content; position: sticky; top: 24px;
+}
+.meta-row { margin-bottom: 16px; }
+.meta-row:last-child { margin-bottom: 0; }
+.meta-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7280; margin-bottom: 5px; }
+.meta-value { font-size: 1rem; color: #f2f4f7; font-weight: 500; }
+.meta-link { color: #58a6ff; word-break: break-all; text-decoration: none; font-size: 0.9rem; }
+.meta-link:hover { text-decoration: underline; }
+.tag {
+  display: inline-block; padding: 4px 10px; border-radius: 999px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  color: #9ca3af; font-size: 0.78rem; margin: 3px 6px 3px 0;
+}
+
+/* Two columns inside main */
+.two-col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+.tracking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.tracking-card {
+  background: rgba(0,0,0,0.18); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 14px; text-align: center; cursor: pointer;
+  transition: transform .15s, border-color .15s;
+}
+.tracking-card:hover { transform: translateY(-2px); border-color: rgba(88,166,255,0.4); }
+.tracking-kind { display: block; font-size: 0.65rem; text-transform: uppercase; color: #6b7280; margin-bottom: 6px; }
+.tracking-code { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; color: #e8eaf0; margin-bottom: 4px; }
+.copy-hint { font-size: 0.68rem; color: #58a6ff; opacity: 0; transition: opacity .2s; }
+.tracking-card:hover .copy-hint { opacity: 1; }
+
+/* Lists */
+.link-list { list-style: none; padding: 0; margin: 0; }
+.link-list li { margin: 8px 0; }
+.link-list a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+  color: #58a6ff; text-decoration: none; transition: background .15s;
+}
+.link-list a:hover { background: rgba(255,255,255,0.08); }
+.icon { opacity: .8; }
+
+/* Footer */
+.footer {
+  padding: 18px 36px; border-top: 1px solid rgba(255,255,255,0.06);
+  color: #5b6373; font-size: 0.78rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.btn-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 36px 20px; padding: 9px 15px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  color: #8b92a8; text-decoration: none; font-size: 0.85rem; transition: .15s;
+}
+.btn-back:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+/* Versions panel */
+.versions-panel { margin: 0 36px 28px; padding: 24px; background: rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.06); border-radius: 18px; }
+.versions-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 16px 0 22px; }
+.compare-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; }
+.compare-card strong { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 6px; }
+.compare-card span { display: block; font-size: 1.05rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.compare-card small { font-size: 0.75rem; color: #8b92a8; }
+.compare-card.archived { border-color: rgba(239,68,68,0.25); background: rgba(239,68,68,0.08); }
+.recommendation-box { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px; color: #c5c9d6; font-size: 0.95rem; line-height: 1.55; }
+.versions-table { width: 100%; border-collapse: collapse; }
+.versions-table th, .versions-table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.88rem; }
+.versions-table th { color: #6b7280; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; }
+.versions-table a { color: #58a6ff; text-decoration: none; }
+.versions-table a:hover { text-decoration: underline; }
+.progress-ring text { fill: #e8eaf0; }
+@media (max-width: 640px) {
+  .hero { flex-direction: column; align-items: flex-start; padding: 24px; }
+  h1 { font-size: 1.6rem; }
+  .versions-panel { margin: 0 20px 20px; }
+  .footer { padding: 18px 24px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="breadcrumb"><a href="/Users/mb/dev/aaa_html_status_CHECKER.html">Dev /</a><span class="bc-sep">/</span><a href="../aaa_html_status_1_publikované.html">1 publikované /</a><span class="bc-sep">/</span><span class="bc-current">webdo24-backend</span></nav>
+  <main class="glass">
+    <div class="hero">
+      <div class="hero-ring"><svg width="130" height="130" viewBox="0 0 130 130" class="progress-ring">
+  <circle cx="65.0" cy="65.0" r="59.0" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="12"/>
+  <circle cx="65.0" cy="65.0" r="59.0" fill="none" stroke="#ff9f0a" stroke-width="12"
+    stroke-linecap="round" stroke-dasharray="370.71" stroke-dashoffset="126.04"
+    transform="rotate(-90 65.0 65.0)" style="transition: stroke-dashoffset .6s;"/>
+  <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="currentColor" font-size="36px" font-weight="700">66%</text>
+</svg></div>
+      <div class="hero-main">
+        <h1>webdo24-backend <span class="changed-badge">● Změna detekována</span></h1>
+        <p class="hero-desc">Backendová část WebDo24.cz — Next.js API běžící na portu 3001, PM2, Stripe, Supabase, Google APIs.</p>
+        <div class="hero-meta">
+          <span class="status-badge ready">Nasazeno / testování</span>
+          <span class="rating" title="Hodnocení: 4/5">★★★★☆</span>
+          <span style="color:#8b92a8;font-size:.9rem">Naplnění vize: <strong style="color:#e8eaf0">65%</strong></span>
+          <span style="color:#8b92a8;font-size:.9rem">3 tagů</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="main-col">
+        <div class="info-block">
+          <h2>Co projekt řeší</h2>
+          <p class="lead">WebDo24 potřebuje backend pro správu klientů, objednávek, plateb a integrací.</p>
+        </div>
+
+        <div class="info-block">
+          <h2>Pro koho je určen</h2>
+          <p class="lead">Interní provoz WebDo24 a jeho klienti.</p>
+        </div>
+
+        <div class="info-block">
+          <h2>Výchozí myšlenka</h2>
+          <p class="lead">Vytvořit robustní backend pro podporu frontendových služeb WebDo24.</p>
+        </div>
+
+        <div class="info-block">
+          <h2>Vývoj a aktuální stav</h2>
+          <p class="lead">Backend běží v produkci, postupně se rozšiřuje o nové endpointy a integrace.</p>
+          <div class="two-col" style="margin-top:16px">
+            <div>
+              <h3>Hotovo</h3>
+              <ul class="dash-list"><li>Základní struktura projektu</li><li>Funkční kód / build</li><li>Nasazení / konfigurace</li></ul>
+            </div>
+            <div>
+              <h3>Zbývá udělat</h3>
+              <ul class="dash-list"><li>Doladit detaily</li><li>Testování a zpětná vazba</li></ul>
+            </div>
+          </div>
+          <p class="empty">—</p>
+        </div>
+      </div>
+
+      <aside class="sidebar-panel">
+        <div class="meta-row">
+          <div class="meta-label">Celkový pokrok</div>
+          <div class="meta-value">66%</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Míra naplnění vize</div>
+          <div class="meta-value">65%</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Hodnocení</div>
+          <div class="meta-value">4 / 5</div>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Tagy</div>
+          <div><span class="tag">api</span><span class="tag">database</span><span class="tag">web</span></div>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">GitHub repo</span>
+          <a class="meta-link" href="https://github.com/mirabeecko/webdo24-backend.git" target="_blank" rel="noopener">https://github.com/mirabeecko/webdo24-backend.git</a>
+        </div>
+        <div class="meta-row">
+          <div class="meta-label">Poslední aktivita</div>
+          <div class="meta-value" style="font-size:.85rem">2026-06-30 16:10</div>
+        </div>
+      </aside>
+    </div>
+
+    <div style="padding:0 36px 28px">
+      <div class="two-col">
+        <div class="info-block">
+          <h2>Co projekt obsahuje</h2>
+          <ul class="dash-list"><li>Next.js API běžící na portu 3001</li><li>Supabase databáze</li><li>Stripe platby</li><li>Google APIs</li><li>PM2 orchestrace</li><li>Zálohování prohlížečových záložek</li></ul>
+        </div>
+        <div class="info-block">
+          <h2>Co zatím chybí</h2>
+          <ul class="dash-list"><li>Kompletní admin rozhraní</li><li>Automatické fakturace</li><li>API dokumentace</li><li>Monitoring a alerting</li><li>Testovací prostředí</li></ul>
+        </div>
+      </div>
+
+      <div class="info-block" style="margin-top:8px">
+        <h2>Měřicí kódy</h2>
+        <p class="empty">Žádné měřicí kódy nebyly nalezeny.</p>
+      </div>
+    </div>
+
+    
+    
+    <div class="info-block"><h3>Podobné projekty</h3><ul class="link-list"><li><a href="../../dashboards and agents/dashboard/aaa_html_status_dashboard.html"><span class="icon">🔀</span> dashboard</a> <small>analytics, api, dashboard, web</small></li><li><a href="../../dashboards and agents/vehicles_app/aaa_html_status_vehicles_app.html"><span class="icon">🔀</span> vehicles_app</a> <small>app, database, web</small></li><li><a href="../../dashboards and agents/ads-live-dashboard/aaa_html_status_ads-live-dashboard.html"><span class="icon">🔀</span> ads-live-dashboard</a> <small>app, dashboard, web</small></li><li><a href="../../brozek24-0/aaa_html_status_brozek24-0.html"><span class="icon">🔀</span> brozek24-0</a> <small>marketing, web</small></li><li><a href="../../dashboards and agents/gif-maker/aaa_html_status_gif-maker.html"><span class="icon">🔀</span> gif-maker</a> <small>web</small></li><li><a href="../../dashboards and agents/htmler/aaa_html_status_htmler.html"><span class="icon">🔀</span> htmler</a> <small>analytics, web</small></li></ul></div>
+
+    <a class="btn-back" href="../aaa_html_status_1_publikované.html">← Zpět na 1 publikované</a>
+    <div class="footer">
+      <span>📁 /Users/mb/dev/1 publikované/webdo24-backend</span>
+      <span>🕒 2026-06-30 16:10 · 🔄 2026-07-08 06:04:42</span>
+    </div>
+  </main>
+</div>
+<script>
+function copyCode(el) {
+  const code = el.querySelector('.tracking-code');
+  navigator.clipboard.writeText(code.textContent).then(() => {
+    const hint = el.querySelector('.copy-hint');
+    const old = hint.textContent;
+    hint.textContent = 'Zkopírováno!';
+    setTimeout(() => hint.textContent = old, 1200);
+  });
+}
+</script>
+<script type="application/json" id="project-data">
+{
+  "description": "Backendová část WebDo24.cz — Next.js API běžící na portu 3001, PM2, Stripe, Supabase, Google APIs.",
+  "problem": "WebDo24 potřebuje backend pro správu klientů, objednávek, plateb a integrací.",
+  "target_audience": "Interní provoz WebDo24 a jeho klienti.",
+  "features": "- Next.js API běžící na portu 3001\n- Supabase databáze\n- Stripe platby\n- Google APIs\n- PM2 orchestrace\n- Zálohování prohlížečových záložek",
+  "missing": "- Kompletní admin rozhraní\n- Automatické fakturace\n- API dokumentace\n- Monitoring a alerting\n- Testovací prostředí",
+  "origin_idea": "Vytvořit robustní backend pro podporu frontendových služeb WebDo24.",
+  "fulfillment": 65,
+  "evolution": "Backend běží v produkci, postupně se rozšiřuje o nové endpointy a integrace.",
+  "status": "Nasazeno / testování",
+  "done": "- Základní struktura projektu\n- Funkční kód / build\n- Nasazení / konfigurace",
+  "remaining": "- Doladit detaily\n- Testování a zpětná vazba",
+  "progress": 66,
+  "rating": 4,
+  "business_value": "Odhad podnikatelského přínosu: ⭐⭐⭐⭐⭐",
+  "github_url": "https://github.com/mirabeecko/webdo24-backend.git",
+  "tracking_codes": {
+    "gtm": [],
+    "ga4": [],
+    "google_ads": [],
+    "fb_pixel": [],
+    "meta_pixel": []
+  },
+  "similar_projects": [],
+  "notes": "",
+  "tags": [
+    "api",
+    "database",
+    "web"
+  ]
+}
+</script>
+</body>
+</html>

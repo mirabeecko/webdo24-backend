@@ -3,6 +3,32 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+interface SnapshotRow {
+  section_key?: string
+  content_type?: string
+  content_value?: string
+  sort_order?: number
+}
+
+interface ServiceRow {
+  title?: string
+  description?: string
+  price?: string
+  sort_order?: number
+}
+
+interface TestimonialRow {
+  customer_name?: string
+  rating?: number
+  text?: string
+}
+
+interface WebsiteSnapshot {
+  website_content?: SnapshotRow[]
+  services?: ServiceRow[]
+  testimonials?: TestimonialRow[]
+}
+
 async function getCustomerProject() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -97,7 +123,7 @@ export async function restoreSnapshot(snapshotId: string) {
 
   if (!snap) throw new Error('Záloha nenalezena')
 
-  const snapshot = snap.snapshot_json as any
+  const snapshot = snap.snapshot_json as WebsiteSnapshot
 
   // Nejdřív smazat existující data
   await supabase.from('webdo24_website_content').delete().eq('project_id', project.id)
@@ -106,7 +132,7 @@ export async function restoreSnapshot(snapshotId: string) {
 
   // Obnovit z zálohy
   if (snapshot.website_content?.length) {
-    const rows = snapshot.website_content.map((r: any) => ({
+    const rows = snapshot.website_content.map((r) => ({
       project_id: project.id,
       section_key: r.section_key,
       content_type: r.content_type,
@@ -117,7 +143,7 @@ export async function restoreSnapshot(snapshotId: string) {
   }
 
   if (snapshot.services?.length) {
-    const rows = snapshot.services.map((r: any) => ({
+    const rows = snapshot.services.map((r) => ({
       project_id: project.id,
       title: r.title,
       description: r.description,
@@ -128,7 +154,7 @@ export async function restoreSnapshot(snapshotId: string) {
   }
 
   if (snapshot.testimonials?.length) {
-    const rows = snapshot.testimonials.map((r: any) => ({
+    const rows = snapshot.testimonials.map((r) => ({
       project_id: project.id,
       customer_name: r.customer_name,
       rating: r.rating,

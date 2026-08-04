@@ -47,8 +47,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 N8N_PIPELINE_WEBHOOK_URL=https://your-n8n-instance/webhook/pipeline
 N8N_QA_WEBHOOK_URL=https://your-n8n-instance/webhook/qa
-APP_URL=https://webdo24.cz
+N8N_EMAIL_ROUTING_WEBHOOK_URL=https://your-n8n-instance/webhook/send-email
+APP_URL=https://login.webdo24.cz
+APP_PUBLIC_URL=https://web.webdo24.cz
 ADMIN_EMAIL=admin@webdo24.cz
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_MONTHLY_1990=price_...
+STRIPE_PRICE_UPSELL_900=price_...
+INTERNAL_EMAIL_WORKER_TOKEN=nahodny-silny-token
 ```
 
 ## Supabase nastavení
@@ -72,11 +79,22 @@ Tím se vytvoří všechny tabulky s prefixem `webdo24_`:
 - `webdo24_project_events`
 - `webdo24_invoices`
 
-### 3. Storage bucket
+### 3. Další migrace
+
+Spusť postupně obsah souborů v `sql/` podle čísla:
+- `002_migrate_existing_schema.sql`
+- `003_customer_admin_schema.sql`
+- `004_upsell_pro_pack.sql`
+- `005_email_routing.sql`
+- `006_versioning_changes_upsell.sql`
+- `007_google_audit_tables.sql`
+- `008_website_snapshots_and_email_queue.sql`
+
+### 4. Storage bucket
 
 Vytvoř bucket `webdo24-files` v Storage sekci s veřejným přístupem pro čtení.
 
-### 4. RLS politiky
+### 5. RLS politiky
 
 RLS politiky jsou součástí SQL migrace. Ověř, že jsou aktivní v Table Editor → jednotlivé tabulky → Policies.
 
@@ -234,6 +252,56 @@ Odesílá na `N8N_QA_WEBHOOK_URL` JSON:
 }
 ```
 
+### Google Audit Agent
+
+Endpoint: `POST /api/audit/google/start`
+
+Odesílá na `N8N_GOOGLE_AUDIT_WEBHOOK_URL` JSON:
+```json
+{
+  "run_id": "uuid",
+  "domain": "webdo24.cz",
+  "client_name": "Webdo24",
+  "ga4_property_id": "",
+  "gtm_account_id": "",
+  "gtm_container_id": "",
+  "search_console_site_url": "https://webdo24.cz/"
+}
+```
+
+n8n musí odpovědět JSONem:
+```json
+{
+  "score": 85,
+  "summary": { "ga4_status": "ok", "gtm_status": "missing" },
+  "findings": [
+    {
+      "area": "GA4",
+      "title": "Chybí GA4 měřicí kód",
+      "problem": "Na webu není nainstalován GA4 tag.",
+      "impact": "Neměříte návštěvnost.",
+      "recommendation": "Nainstalujte gtag.js do <head>.",
+      "severity": "red"
+    }
+  ]
+}
+```
+
+**Testovací curl:**
+```bash
+curl -X POST http://localhost:3000/api/audit/google/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain":"webdo24.cz",
+    "client_name":"Webdo24",
+    "search_console_site_url":"https://webdo24.cz/"
+  }'
+```
+
+Detail auditu: `GET /api/audit/google/[run_id]`
+
+Admin UI: `/admin/google-audit`
+
 ## Struktura projektu
 
 ```
@@ -277,18 +345,59 @@ webdo24-backend/
 - API endpointy kontrolují autentizaci a role
 - Supabase Storage ověřuje vlastnictví projektu před uploadem
 
+## Emailové notifikace
+
+Emaily se řídí přes tabulku `webdo24_email_queue`. Odesílání probíhá asynchronně přes n8n webhook (`N8N_EMAIL_ROUTING_WEBHOOK_URL`).
+
+### Nastavení
+
+1. Vytvořte v n8n workflow, které přijme JSON s poli `to`, `to_name`, `subject`, `html`, `text` a odešle email.
+2. Přidejte do `.env.local`:
+   ```env
+   N8N_EMAIL_ROUTING_WEBHOOK_URL=https://your-n8n-instance/webhook/send-email
+   INTERNAL_EMAIL_WORKER_TOKEN=nahodny-silny-token
+   ```
+3. Nastavte scheduler (n8n / Supabase Cron / jiný), který volá:
+   ```bash
+   curl -X POST https://login.webdo24.cz/api/email/send-pending \
+     -H "Authorization: Bearer <INTERNAL_EMAIL_WORKER_TOKEN>"
+   ```
+
+### Aktivní šablony
+
+- `welcome` — po registraci
+- `change_request_received` — po vytvoření AI požadavku
+- `change_request_preview_ready` — když je návrh ke schválení
+- `change_published` — po publikování změn
+- `change_rejected` — když je požadavek zrušen
+- `payment_success` — po úspěšné platbě
+- `new_lead` — při nové poptávce z webu
+
+## Co je hotovo pro zákaznický backend
+
+- [x] Úprava textů na webu přes backend (editor sekcí hero, kontakty, o nás)
+- [x] Nahrávání fotek do webu přes Supabase Storage
+- [x] Správa aktivních služeb a možnost je doplňovat
+- [x] Správa referencí
+- [x] AI požadavky na změny s workflow a schvalováním
+- [x] Emailové notifikace (queue + šablony + worker endpoint)
+- [x] Nabídky / upsell služby s katalogem a Stripe platbami
+- [x] Veřejný kontaktní formulář na webu s notifikací majiteli
+- [x] Zálohování webu před publikováním (`webdo24_website_snapshots`)
+- [x] Zákaznické nastavení emailových preferencí
+
 ## Co zbývá pro produkci
 
 - [ ] Nastavit reálné n8n webhooky a ověřit callbacky
 - [ ] Implementovat reálný deploy proces (FTP, SSH, Vercel, Netlify)
-- [ ] Přidat emailové notifikace (např. přes Resend/Supabase Edge Functions)
-- [ ] Přidat platební bránu (GoPay, Stripe, Braintree)
-- [x] Základní správa faktur (TODO: platební brána, PDF export)
+- [x] Přidat emailové notifikace — viz `sql/008_website_snapshots_and_email_queue.sql`
+- [x] Přidat platební bránu — Stripe (checkout + webhook + upsell)
+- [x] Základní správa faktur (TODO: PDF export)
 - [ ] Přidat notifikace v reálném čase (WebSockets / Supabase Realtime)
 - [ ] Vylepšit validaci formulářů (Zod + React Hook Form)
 - [ ] Přidat testy (Jest, Playwright)
 - [ ] Přidat rate limiting na API
-- [ ] Přidat audit log pro admin akce
+- [x] Přidat audit log pro admin akce
 - [ ] Implementovat vícejazyčnost admin rozhraní
 - [ ] Přidat dark mode
 - [ ] Nastavit CI/CD pipeline

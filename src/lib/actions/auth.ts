@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { queueEmailToCustomer } from '@/lib/email/queue'
 import { cookies } from 'next/headers'
 
 export async function loginAction(email: string, password: string) {
@@ -51,11 +52,21 @@ export async function registerAction(name: string, email: string, password: stri
   }
 
   if (data.user) {
-    await supabase.from('webdo24_customers').insert({
-      user_id: data.user.id,
-      name,
-      email,
-    })
+    const { data: customer } = await supabase
+      .from('webdo24_customers')
+      .insert({
+        user_id: data.user.id,
+        name,
+        email,
+      })
+      .select('id')
+      .single()
+
+    if (customer?.id) {
+      queueEmailToCustomer(customer.id, 'welcome', {
+        customerName: name,
+      }).catch((err) => console.error('[registerAction] welcome email failed:', err))
+    }
   }
 
   return { success: true }

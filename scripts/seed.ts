@@ -62,6 +62,13 @@ async function seed() {
 
   console.log('Customer record created:', customer.id)
 
+  // Create default email preferences
+  await admin.from('webdo24_customer_email_prefs').insert({
+    customer_id: customer.id,
+    notifications_enabled: true,
+    marketing_enabled: true,
+  })
+
   // Create projects
   const projects = [
     {

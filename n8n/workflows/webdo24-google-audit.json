@@ -1,0 +1,47 @@
+{
+  "name": "Webdo24 Google Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webdo24-google-audit",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "webdo24-google-audit"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Vstupní data z webhooku\nconst body = $input.first().json;\n\n// Simulovaný výsledek auditu – v produkci sem přijde reálná logika\nreturn [{\n  json: {\n    score: 72,\n    summary: {\n      ga4_status: 'missing',\n      gtm_status: 'found',\n      search_console_status: 'ok',\n      meta_tags_status: 'ok',\n      mobile_friendly: 'ok'\n    },\n    findings: [\n      {\n        area: 'GA4',\n        title: 'Chybí GA4 měřicí kód',\n        problem: 'Na webu není nainstalován Google Analytics 4 tag.',\n        impact: 'Neměříte návštěvnost a konverze.',\n        recommendation: 'Nainstalujte gtag.js do <head> webu.',\n        severity: 'red'\n      },\n      {\n        area: 'GTM',\n        title: 'GTM kontejner nalezen',\n        problem: null,\n        impact: null,\n        recommendation: null,\n        severity: 'green'\n      },\n      {\n        area: 'Search Console',\n        title: 'Web je připojen k Search Console',\n        problem: null,\n        impact: null,\n        recommendation: 'Doporučujeme pravidelně kontrolovat reporty.',\n        severity: 'green'\n      },\n      {\n        area: 'Meta tagy',\n        title: 'Chybí Open Graph image',\n        problem: 'Meta tag og:image není nastaven.',\n        impact: 'Sdílení na sociálních sítích vypadá špatně.',\n        recommendation: 'Přidejte og:image tag s rozměry 1200×630 px.',\n        severity: 'yellow'\n      }\n    ]\n  }\n}];"
+      },
+      "id": "code-response",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

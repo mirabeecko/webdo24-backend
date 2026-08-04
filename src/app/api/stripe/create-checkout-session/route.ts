@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       mode: 'subscription',
 	expires_at: Math.floor(Date.now() / 1000) + (30 * 60),
 
-      payment_method_types: ['card'],
+      payment_method_types: ['card', 'sepa_debit', 'eps', 'klarna'],
 
       line_items: [
         {
