@@ -3,165 +3,180 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-async function getCustomer() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id, telegram_phone, telegram_connected, telegram_chat_id')
-    .eq('user_id', user.id)
-    .single()
-  return customer
+// Graceful wrappers that don't crash on missing columns/tables
+// Run sql/010_mvp_telegram_sandbox_domain.sql in Supabase SQL Editor to enable all features
+
+async function getCustomerSafe() {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+    const { data: customer, error } = await supabase
+      .from('webdo24_customers')
+      .select('id, telegram_phone, telegram_connected, telegram_chat_id')
+      .eq('user_id', user.id)
+      .single()
+    if (error) return null
+    return customer
+  } catch { return null }
 }
 
-async function getCustomerProject() {
-  const customer = await getCustomer()
-  if (!customer) return null
-
-  const supabase = await createClient()
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, sandbox_enabled, sandbox_url, custom_domain, custom_domain_verified, production_url, status')
-    .eq('customer_id', customer.id)
-    .single()
-  return project
+async function getProjectSafe() {
+  try {
+    const customer = await getCustomerSafe()
+    if (!customer) return null
+    const supabase = await createClient()
+    const { data: project, error } = await supabase
+      .from('webdo24_projects')
+      .select('id, sandbox_enabled, sandbox_url, custom_domain, custom_domain_verified, production_url, status')
+      .eq('customer_id', customer.id)
+      .single()
+    if (error) return null
+    return project
+  } catch { return null }
 }
 
 // ── TELEGRAM ──
 
 export async function getTelegramSettings() {
-  const customer = await getCustomer()
-  if (!customer) return null
-  return {
-    telegram_phone: customer.telegram_phone,
-    telegram_connected: customer.telegram_connected,
-  }
+  try {
+    const customer = await getCustomerSafe()
+    if (!customer) return null
+    return {
+      telegram_phone: (customer as any).telegram_phone ?? null,
+      telegram_connected: (customer as any).telegram_connected ?? false,
+    }
+  } catch { return null }
 }
 
 export async function saveTelegramPhone(phone: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Nejste přihlášen')
-
-  const { error } = await supabase
-    .from('webdo24_customers')
-    .update({ telegram_phone: phone })
-    .eq('user_id', user.id)
-
-  if (error) throw new Error(error.message)
-  revalidatePath('/nastaveni')
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Nejste přihlášen')
+    const { error } = await supabase
+      .from('webdo24_customers')
+      .update({ telegram_phone: phone } as any)
+      .eq('user_id', user.id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/nastaveni')
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'Chyba při ukládání')
+  }
 }
 
 // ── SANDBOX ──
 
 export async function getSandboxStatus() {
-  const project = await getCustomerProject()
-  if (!project) return null
-  return {
-    sandbox_enabled: project.sandbox_enabled,
-    sandbox_url: project.sandbox_url,
-    production_url: project.production_url,
-    status: project.status,
-  }
+  try {
+    const project = await getProjectSafe()
+    if (!project) return null
+    return {
+      sandbox_enabled: (project as any).sandbox_enabled ?? true,
+      sandbox_url: (project as any).sandbox_url ?? null,
+      production_url: (project as any).production_url ?? null,
+      status: (project as any).status ?? 'draft',
+    }
+  } catch { return null }
 }
 
 export async function toggleSandbox(enabled: boolean) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Nejste přihlášen')
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) throw new Error('Zákazník nenalezen')
-
-  const { error } = await supabase
-    .from('webdo24_projects')
-    .update({ sandbox_enabled: enabled })
-    .eq('customer_id', customer.id)
-
-  if (error) throw new Error(error.message)
-  revalidatePath('/nastaveni')
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Nejste přihlášen')
+    const { data: customer } = await supabase
+      .from('webdo24_customers').select('id').eq('user_id', user.id).single()
+    if (!customer) throw new Error('Zákazník nenalezen')
+    const { error } = await supabase
+      .from('webdo24_projects')
+      .update({ sandbox_enabled: enabled } as any)
+      .eq('customer_id', customer.id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/nastaveni')
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'Chyba při ukládání')
+  }
 }
 
 // ── CUSTOM DOMAIN ──
 
 export async function getDomainSettings() {
-  const project = await getCustomerProject()
-  if (!project) return null
-  return {
-    custom_domain: project.custom_domain,
-    custom_domain_verified: project.custom_domain_verified,
-  }
+  try {
+    const project = await getProjectSafe()
+    if (!project) return null
+    return {
+      custom_domain: (project as any).custom_domain ?? null,
+      custom_domain_verified: (project as any).custom_domain_verified ?? false,
+    }
+  } catch { return null }
 }
 
 export async function saveCustomDomain(domain: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Nejste přihlášen')
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) throw new Error('Zákazník nenalezen')
-
-  const token = `webdo24-verify-${crypto.randomUUID().slice(0, 8)}`
-
-  const { error } = await supabase
-    .from('webdo24_projects')
-    .update({
-      custom_domain: domain,
-      custom_domain_verified: false,
-      custom_domain_verification_token: token,
-    })
-    .eq('customer_id', customer.id)
-
-  if (error) throw new Error(error.message)
-  revalidatePath('/nastaveni')
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Nejste přihlášen')
+    const { data: customer } = await supabase
+      .from('webdo24_customers').select('id').eq('user_id', user.id).single()
+    if (!customer) throw new Error('Zákazník nenalezen')
+    const token = `webdo24-verify-${crypto.randomUUID().slice(0, 8)}`
+    const { error } = await supabase
+      .from('webdo24_projects')
+      .update({
+        custom_domain: domain,
+        custom_domain_verified: false,
+        custom_domain_verification_token: token,
+      } as any)
+      .eq('customer_id', customer.id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/nastaveni')
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'Chyba při ukládání')
+  }
 }
 
 // ── UPDATE SUGGESTIONS ──
 
 export async function getUpdateSuggestions() {
-  const project = await getCustomerProject()
-  if (!project) return []
-
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('webdo24_update_suggestions')
-    .select('*')
-    .eq('project_id', project.id)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  return data || []
+  try {
+    const project = await getProjectSafe()
+    if (!project) return []
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('webdo24_update_suggestions')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    return data || []
+  } catch { return [] }
 }
 
 export async function acceptSuggestion(id: string) {
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('webdo24_update_suggestions')
-    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-    .eq('id', id)
-
-  if (error) throw new Error(error.message)
-  revalidatePath('/nastaveni')
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from('webdo24_update_suggestions')
+      .update({ status: 'accepted', accepted_at: new Date().toISOString() } as any)
+      .eq('id', id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/nastaveni')
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'Chyba')
+  }
 }
 
 export async function dismissSuggestion(id: string) {
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('webdo24_update_suggestions')
-    .update({ status: 'dismissed' })
-    .eq('id', id)
-
-  if (error) throw new Error(error.message)
-  revalidatePath('/nastaveni')
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from('webdo24_update_suggestions')
+      .update({ status: 'dismissed' } as any)
+      .eq('id', id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/nastaveni')
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'Chyba')
+  }
 }
