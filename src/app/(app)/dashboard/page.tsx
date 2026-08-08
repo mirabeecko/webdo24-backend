@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { getDashboardData } from '@/lib/actions/dashboard'
 import AIChat from '@/components/app/AIChat'
+import DashboardStatus from '@/components/ccc/DashboardStatus'
 
 export default async function DashboardPage() {
   const data = await getDashboardData()
@@ -27,13 +28,17 @@ export default async function DashboardPage() {
   }
 
   return (
-    <AIChat
-      customerName={data.customerName ?? ''}
-      planTier={data.hasProPack ? 'pro' : 'start'}
-      projectId={data.project.id}
-      customerEmail={data.customerEmail}
-      newLeadsCount={data.newLeadsCount}
-      recentChanges={data.recentChanges}
-    />
+    <div>
+      {/* Stavový přehled dle §17 (CCC) – nad existujícím AI chatem */}
+      <DashboardStatus />
+      <AIChat
+        customerName={data.customerName ?? ''}
+        planTier={data.hasProPack ? 'pro' : 'start'}
+        projectId={data.project.id}
+        customerEmail={data.customerEmail}
+        newLeadsCount={data.newLeadsCount}
+        recentChanges={data.recentChanges}
+      />
+    </div>
   )
 }

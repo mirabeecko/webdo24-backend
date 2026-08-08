@@ -5,16 +5,24 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, Globe, Sparkles, MessageSquare,
-  ShoppingBag, Settings, LogOut, Zap,
+  LayoutDashboard, Globe, FileText, Image as ImageIcon,
+  Palette, Contact, History, MessageSquare, Sparkles,
+  ShoppingBag, CreditCard, Settings, LogOut, Zap,
 } from 'lucide-react'
 
+// Navigace dle architektury §28 (Customer Control Center)
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Přehled', icon: LayoutDashboard },
   { href: '/web', label: 'Můj web', icon: Globe },
+  { href: '/obsah', label: 'Obsah', icon: FileText },
+  { href: '/media', label: 'Média', icon: ImageIcon },
+  { href: '/vzhled', label: 'Vzhled značky', icon: Palette },
+  { href: '/kontakty', label: 'Kontaktní údaje', icon: Contact },
+  { href: '/historie', label: 'Historie změn', icon: History },
+  { href: '/zpravy', label: 'Poptávky', icon: MessageSquare },
   { href: '/pozadavky', label: 'Požadavky', icon: Sparkles },
-  { href: '/zpravy', label: 'Zprávy', icon: MessageSquare },
-  { href: '/sluzby', label: 'Služby', icon: ShoppingBag },
+  { href: '/sluzby', label: 'Moje služby', icon: ShoppingBag },
+  { href: '/fakturace', label: 'Fakturace', icon: CreditCard },
   { href: '/nastaveni', label: 'Nastavení', icon: Settings },
 ]
 
@@ -87,9 +95,9 @@ export default function AppLayout({ children, userEmail }: { children: React.Rea
         {children}
       </main>
 
-      {/* Mobile Bottom Nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#0d1525] border-t border-white/5 z-50 px-2 pb-safe backdrop-blur-xl">
-        <div className="flex justify-around items-center h-16">
+      {/* Mobile Bottom Nav – horizontálně skrolovatelná (12 sekcí) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[#0d1525] border-t border-white/5 z-50 pb-safe backdrop-blur-xl">
+        <div className="flex items-center h-16 overflow-x-auto px-2 gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.href)
@@ -97,12 +105,12 @@ export default function AppLayout({ children, userEmail }: { children: React.Rea
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-xl transition-all ${
+                className={`flex flex-col items-center justify-center gap-0.5 min-w-16 h-14 px-2 rounded-xl transition-all shrink-0 ${
                   active ? 'text-cyan-400' : 'text-white/30'
                 }`}
               >
                 <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <span className="text-[10px] font-medium whitespace-nowrap">{item.label}</span>
               </Link>
             )
           })}
