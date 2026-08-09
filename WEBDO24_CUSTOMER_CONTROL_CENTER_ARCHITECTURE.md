@@ -621,3 +621,33 @@ caddy/Caddyfile                 — fix port 3002→3001 (ověřit na VPS!)
 6. *Rollback?* — nová verze přes stejnou trasu, historie se nemaže.
 7. *Nemůže zákazník rozbít produkci?* — edituje jen validovaná pole Registry; žádný HTML/layout; publish až po preview; verification + rollback.
 8. *Složitost skrytá?* — UI mluví o „nadpisu, fotce, telefonu“; ChangeSet/version/deploy zůstávají interní.
+
+---
+
+## Phase 5 — stav (2026-08-08)
+
+Implementováno (§13, §14, §21):
+
+- `src/lib/ccc/ai.ts` — provider vrstva přes n8n webhook `N8N_AI_ASSIST_WEBHOOK_URL`
+  (POST, `X-Webhook-Secret: N8N_WEBHOOK_SECRET`, timeout 60 s). `suggestTextVariants`
+  (módy improve/shorten/expand/professional/sales/simple/seo/custom),
+  `generateImageAsset` (image_base64|image_url → Media Library přes standardní
+  upload pipeline, source 'ai'), `recordAiAcceptance`. Audit `AI_CONTENT_GENERATED` /
+  `AI_ACTION_ACCEPTED`. Bez env nebo při výpadku n8n → čistá česká chyba
+  „AI asistent není momentálně dostupný" (§1.F — AI není podmínka fungování CMS).
+- UI: `src/components/ccc/AiSuggestPanel.tsx` integrovaný do ContentEditoru — „✨ AI návrh"
+  u textových polí (diff Původní | Navrhovaný → Použít návrh jen přenese hodnotu do
+  lokální editace) a „✨ Vytvořit pomocí AI" u image/logo polí (prompt → náhled → Použít).
+  AI nikdy nepublikuje — výstup vždy prochází ChangeSet flow (§22).
+- `n8n/workflows/webdo24-ai-assist.json` — importovatelný template workflow
+  (Webhook → Verify Secret → Switch text/image → HTTP LLM/image call s placeholder
+  credentials → respond). Systémové prompty česky, pravidlo „odpověz POUZE výsledným
+  textem".
+
+K plné funkčnosti chybí (mimo repo):
+
+1. Import workflow do n8n + doplnění LLM/image credentials (placeholder `Authorization`
+   header v nodech LLM Call / Image Call).
+2. Env v n8n: `N8N_WEBHOOK_SECRET` (shodná s aplikací).
+3. Env aplikace (Vercel/VPS): `N8N_AI_ASSIST_WEBHOOK_URL` = production webhook URL
+  workflow, `N8N_WEBHOOK_SECRET` (už se používá pro `/api/webhooks/n8n`).

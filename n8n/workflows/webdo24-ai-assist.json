@@ -1,0 +1,187 @@
+{
+  "name": "WebDo24 AI Assist (CCC)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "sticky-note",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, 120],
+      "parameters": {
+        "content": "## WebDo24 AI Assist\n\nEndpoint pro Customer Control Center (Phase 5).\n\n### Napojení\n1. V n8n nastav env proměnnou **N8N_WEBHOOK_SECRET** (stejnou hodnotu jako má Next.js app).\n2. V nodech **LLM Call** / **Image Call** doplň vlastní credentials (HTTP Header Auth: `Authorization: Bearer <API_KEY>`) – placeholder je OpenAI API, ale stačí přepsat URL+body na Anthropic/jiný provider.\n3. Aktivuj workflow a production URL (`/webhook/webdo24-ai-assist`) nastav v Next.js app jako **N8N_AI_ASSIST_WEBHOOK_URL**.\n\n### Kontrakt\n- Request: `{action:'text', mode, field_key, field_type, current_value, custom_instruction, context}` → `{suggestion}`\n- Request: `{action:'image', prompt}` → `{image_base64}` nebo `{image_url}`\n- Auth: hlavička `X-Webhook-Secret`",
+        "height": 340,
+        "width": 460
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webdo24-ai-assist",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 420],
+      "webhookId": "webdo24-ai-assist"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.headers['x-webhook-secret'] }}",
+              "value2": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        }
+      },
+      "id": "verify-secret",
+      "name": "Verify Secret",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { error: 'unauthorized' } }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "respond-401",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 560]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.action }}",
+        "rules": {
+          "rules": [
+            { "value": "text", "output": 0 },
+            { "value": "image", "output": 1 }
+          ]
+        },
+        "fallbackOutput": "none"
+      },
+      "id": "switch-action",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [680, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sestaví prompt pro textový návrh (§13)\nconst body = $input.first().json.body;\n\nconst MODE_PROMPTS = {\n  improve: 'Vylepši následující text na firemním webu. Zachovej význam, zlepši styl a čtivost.',\n  shorten: 'Zkrati následující text na polovinu délky, zachovej podstatné.',\n  expand: 'Rozšiř následující text o relevantní detaily, které zákazníka zajímají.',\n  professional: 'Přepiš následující text profesionálním, důvěryhodným tónem.',\n  sales: 'Přepiš následující text tak, aby lépe prodával – konkrétní benefity, jasná výzva k akci.',\n  simple: 'Přepiš následující text jednoduchou, srozumitelnou češtinou pro laika.',\n  seo: 'Přepiš následující text s ohledem na SEO – přirozeně zakomponuj klíčová slova z oboru a lokality.',\n  custom: 'Uprav následující text podle této instrukce: ' + (body.custom_instruction || '(instrukce chybí)'),\n};\n\nconst ctx = body.context || {};\nconst contextLine = [\n  ctx.company_name ? `Firma: ${ctx.company_name}` : null,\n  ctx.business_type ? `Obor: ${ctx.business_type}` : null,\n  ctx.location || ctx.city ? `Lokalita: ${ctx.location || ctx.city}` : null,\n  `Pole: ${body.field_key} (${body.field_type})`,\n].filter(Boolean).join('\\n');\n\nconst system = `${MODE_PROMPTS[body.mode] || MODE_PROMPTS.improve}\\nPiš česky. Odpověz POUZE výsledným textem, bez úvodů, vysvětlivek a uvozovek.`;\nconst user = `${contextLine}\\n\\nAktuální text:\\n${body.current_value || '(prázdné)'}`;\n\nreturn [{ json: { system, user } }];"
+      },
+      "id": "build-text-prompt",
+      "name": "Build Text Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer DOPLN_OPENAI_API_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-4o-mini', messages: [ { role: 'system', content: $json.system }, { role: 'user', content: $json.user } ], temperature: 0.7 } }}",
+        "options": { "timeout": 55000 }
+      },
+      "id": "llm-call",
+      "name": "LLM Call (placeholder)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300],
+      "notes": "Doplň vlastní API klíč (Authorization header) nebo přepiš na Anthropic /messages. Model dle potřeby."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Výstup: {suggestion}\nconst res = $input.first().json;\nconst text = res.choices?.[0]?.message?.content ?? res.content?.[0]?.text ?? '';\nif (!text) throw new Error('LLM nevrátil žádný text');\nreturn [{ json: { suggestion: text.trim() } }];"
+      },
+      "id": "format-text-response",
+      "name": "Format Text Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prompt pro generování obrázku (§14)\nconst body = $input.first().json.body;\nif (!body.prompt || !body.prompt.trim()) throw new Error('Chybí prompt');\nreturn [{ json: { prompt: body.prompt.trim() } }];"
+      },
+      "id": "build-image-prompt",
+      "name": "Build Image Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 460]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer DOPLN_OPENAI_API_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-image-1', prompt: $json.prompt, size: '1024x1024' } }}",
+        "options": { "timeout": 55000 }
+      },
+      "id": "image-call",
+      "name": "Image Call (placeholder)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 460],
+      "notes": "Doplň vlastní API klíč. gpt-image-1 vrací b64_json; DALL-E 3 vrací url (oba formáty app podporuje)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Výstup: {image_base64} nebo {image_url}\nconst res = $input.first().json;\nconst item = res.data?.[0];\nif (!item) throw new Error('Image API nevrátilo žádný obrázek');\nif (item.b64_json) return [{ json: { image_base64: item.b64_json, width: 1024, height: 1024 } }];\nif (item.url) return [{ json: { image_url: item.url, width: 1024, height: 1024 } }];\nthrow new Error('Neznámý formát odpovědi image API');"
+      },
+      "id": "format-image-response",
+      "name": "Format Image Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 460]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Verify Secret", "type": "main", "index": 0 }]] },
+    "Verify Secret": {
+      "main": [
+        [{ "node": "Switch Action", "type": "main", "index": 0 }],
+        [{ "node": "Respond 401", "type": "main", "index": 0 }]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [{ "node": "Build Text Prompt", "type": "main", "index": 0 }],
+        [{ "node": "Build Image Prompt", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Text Prompt": { "main": [[{ "node": "LLM Call (placeholder)", "type": "main", "index": 0 }]] },
+    "LLM Call (placeholder)": { "main": [[{ "node": "Format Text Response", "type": "main", "index": 0 }]] },
+    "Build Image Prompt": { "main": [[{ "node": "Image Call (placeholder)", "type": "main", "index": 0 }]] },
+    "Image Call (placeholder)": { "main": [[{ "node": "Format Image Response", "type": "main", "index": 0 }]] }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": []
+}

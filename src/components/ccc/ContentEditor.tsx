@@ -8,9 +8,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Save, Loader2, AlertCircle, CheckCircle2, Image as ImageIcon,
-  Plus, Trash2, X, FileText,
+  Plus, Trash2, X, FileText, Sparkles,
 } from 'lucide-react'
 import ChangeSetPanel from '@/components/ccc/ChangeSetPanel'
+import AiSuggestPanel from '@/components/ccc/AiSuggestPanel'
 import {
   getPageContentAction,
   createChangeSetAction,
@@ -232,6 +233,7 @@ export default function ContentEditor({
   const [saved, setSaved] = useState(false)
   const [activeChangeset, setActiveChangeset] = useState<ChangeSetWithItems | null>(null)
   const [mediaPickerFor, setMediaPickerFor] = useState<string | null>(null)
+  const [aiFor, setAiFor] = useState<ContentFieldWithValue | null>(null)
 
   const selectPage = (slug: string) => {
     setSelectedPage(slug)
@@ -369,19 +371,38 @@ export default function ContentEditor({
           >
             <h2 className="text-sm font-semibold text-white mb-4 capitalize">{sectionKey}</h2>
             <div className="space-y-4">
-              {sectionFields.map((f) => (
-                <div key={f.id}>
-                  <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider mb-1.5">
-                    {f.label}
-                  </label>
-                  <FieldInput
-                    field={f}
-                    value={fieldValue(f)}
-                    onChange={(v) => setEdits((prev) => ({ ...prev, [f.field_key]: v }))}
-                    onPickMedia={setMediaPickerFor}
-                  />
-                </div>
-              ))}
+              {sectionFields.map((f) => {
+                const aiEligible =
+                  canEdit &&
+                  ['text', 'textarea', 'rich_text', 'image', 'logo'].includes(f.field_type)
+                return (
+                  <div key={f.id}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-white/40 uppercase tracking-wider">
+                        {f.label}
+                      </label>
+                      {aiEligible && (
+                        <button
+                          type="button"
+                          onClick={() => setAiFor(f)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-cyan-400/70 hover:text-cyan-400 hover:bg-cyan-400/10 transition-colors"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          {f.field_type === 'image' || f.field_type === 'logo'
+                            ? 'Vytvořit pomocí AI'
+                            : 'AI návrh'}
+                        </button>
+                      )}
+                    </div>
+                    <FieldInput
+                      field={f}
+                      value={fieldValue(f)}
+                      onChange={(v) => setEdits((prev) => ({ ...prev, [f.field_key]: v }))}
+                      onPickMedia={setMediaPickerFor}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </section>
         ))
@@ -409,6 +430,18 @@ export default function ContentEditor({
             </span>
           )}
         </div>
+      )}
+
+      {/* AI asistent modal */}
+      {aiFor && (
+        <AiSuggestPanel
+          fieldKey={aiFor.field_key}
+          fieldType={aiFor.field_type}
+          fieldLabel={aiFor.label}
+          currentValue={typeof fieldValue(aiFor) === 'string' ? (fieldValue(aiFor) as string) : ''}
+          onUse={(value) => setEdits((prev) => ({ ...prev, [aiFor.field_key]: value }))}
+          onClose={() => setAiFor(null)}
+        />
       )}
 
       {/* Media picker modal */}

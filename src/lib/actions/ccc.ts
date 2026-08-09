@@ -29,7 +29,8 @@ import {
 } from '@/lib/ccc/publish'
 import { listMediaAssets, getMediaAssetUsage, uploadMediaAsset, updateMediaAssetAlt } from '@/lib/ccc/media'
 import { listNotifications, markNotificationRead } from '@/lib/ccc/notifications'
-import type { MediaCategory, MembershipRole } from '@/types/website-contract'
+import { suggestTextVariants, generateImageAsset, recordAiAcceptance, type AiTextMode } from '@/lib/ccc/ai'
+import type { FieldType, MediaCategory, MembershipRole } from '@/types/website-contract'
 
 // --------------------------------------------------------------
 // Kontext: aktuální uživatel → customer → projekt (V1: 1:1:1)
@@ -208,6 +209,31 @@ export async function uploadMediaAction(formData: FormData) {
         : undefined,
     altText: typeof altText === 'string' && altText ? altText : undefined,
   })
+}
+
+// --------------------------------------------------------------
+// AI asistent (§13, §14) – výstup je vždy jen návrh do editoru
+// --------------------------------------------------------------
+
+export async function aiSuggestAction(input: {
+  fieldKey: string
+  fieldType: FieldType
+  currentValue: string
+  mode: AiTextMode
+  customInstruction?: string
+}) {
+  const ctx = await requireContext()
+  return suggestTextVariants({ ...input, projectId: ctx.projectId })
+}
+
+export async function aiGenerateImageAction(prompt: string, targetFieldKey?: string) {
+  const ctx = await requireContext()
+  return generateImageAsset({ projectId: ctx.projectId, prompt, targetFieldKey })
+}
+
+export async function aiAcceptAction(fieldKey: string, kind: 'text' | 'image') {
+  const ctx = await requireContext()
+  return recordAiAcceptance(ctx.projectId, fieldKey, kind)
 }
 
 // --------------------------------------------------------------
