@@ -395,6 +395,8 @@ export default function ProjectDetailClient({
                 { label: 'SEO klíčová slova', key: 'seo_keywords' },
                 { label: 'Požadované sekce', key: 'required_sections' },
                 { label: 'Speciální požadavky', key: 'special_requirements' },
+                { label: 'Inspirace — URL webu (volitelné)', key: 'inspiration_url' },
+                { label: 'Inspirace — líbivé prvky (volitelné)', key: 'inspiration_notes' },
                 { label: 'Raw input', key: 'raw_input' },
               ].map((field) => (
                 <div key={field.key}>

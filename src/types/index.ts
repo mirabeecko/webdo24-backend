@@ -68,6 +68,10 @@ export interface ProjectBrief {
   seo_keywords?: string;
   required_sections?: string;
   special_requirements?: string;
+  /** Volitelné: URL webu, který se zákazníkovi líbí (inspirace pro art direction). */
+  inspiration_url?: string;
+  /** Volitelné: popis konkrétních prvků, které se zákazníkovi líbí (barvy, typografie, sekce, ...). */
+  inspiration_notes?: string;
   created_at: string;
   updated_at: string;
 }

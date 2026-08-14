@@ -215,6 +215,8 @@ export default function CustomerProjectDetailClient({
                 { label: 'SEO klíčová slova', key: 'seo_keywords' },
                 { label: 'Požadované sekce', key: 'required_sections' },
                 { label: 'Speciální požadavky', key: 'special_requirements' },
+                { label: 'Inspirace — URL webu (volitelné)', key: 'inspiration_url' },
+                { label: 'Inspirace — líbivé prvky (volitelné)', key: 'inspiration_notes' },
               ].map((field) => (
                 <div key={field.key}>
                   <label className="block text-sm font-medium text-gray-500">{field.label}</label>

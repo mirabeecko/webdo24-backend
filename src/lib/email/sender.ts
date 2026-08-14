@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
 interface WebhookPayload {
+  template_key: string
   to: string
   to_name?: string | null
   subject: string
@@ -48,6 +49,7 @@ export async function sendEmailById(id: string): Promise<{ ok: boolean; error?: 
 
   try {
     const payload: WebhookPayload = {
+      template_key: email.template_key,
       to: email.to_email,
       to_name: email.to_name,
       subject: email.subject,
