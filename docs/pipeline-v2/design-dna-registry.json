@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "note": "Registr design DNA realizací pipeline v2. Každý nový web MUSÍ mít min. 5 ze 7 dimenzí odlišných od každého AKTIVNÍHO webu zde (max 2 sdílené). Varianty viz skill web-design-dna-system. Archived = nahrazené/chybné verze, neporovnávají se.",
+  "websites": [
+    {
+      "name": "zubni-ordinace-dvorakova",
+      "industry": "zubařská ordinace",
+      "file": "data/staging/web-zubni-ordinace-preview-v3.html",
+      "created": "2026-08-10",
+      "status": "active",
+      "dna": {
+        "hero": "H1",
+        "typography": "T1",
+        "colors": "C1",
+        "services": "S1",
+        "references": "R1",
+        "footer": "F1",
+        "motion": "M2"
+      }
+    },
+    {
+      "name": "stavby-horak-v2",
+      "industry": "stavební firma",
+      "file": "data/staging/web-stavby-horak-preview-v2.html",
+      "created": "2026-08-10",
+      "status": "active",
+      "dna": {
+        "hero": "H4",
+        "typography": "T6",
+        "colors": "C5",
+        "services": "S2",
+        "references": "R3",
+        "footer": "F2",
+        "motion": "M1"
+      },
+      "note": "Originální DNA dle systému — 0 sdílených dimenzí se zubařkou. Validováno skriptem validate-design-dna.py."
+    },
+    {
+      "name": "stavby-horak-v1",
+      "industry": "stavební firma",
+      "file": "data/staging/web-stavby-horak-preview-v1.html",
+      "created": "2026-08-10",
+      "status": "archived",
+      "dna": {
+        "hero": "H2",
+        "typography": "T2",
+        "colors": "C2",
+        "services": "S1",
+        "references": "R2",
+        "footer": "F1",
+        "motion": "M2"
+      },
+      "note": "ARCHIVOVÁNO — 3 sdílené dimenze se zubařkou (S1, F1, M2) = template feel. Nahrazeno v2. Demonstrace, proč systém existuje."
+    },
+    {
+      "name": "rezidence-horizont",
+      "industry": "realitní společnost",
+      "file": "data/staging/web-rezidence-horizont-preview-v1.html",
+      "created": "2026-08-10",
+      "status": "active",
+      "dna": {
+        "hero": "H2",
+        "typography": "T1b",
+        "colors": "C6",
+        "services": "S1",
+        "references": "R8",
+        "footer": "F2b",
+        "motion": "M7"
+      },
+      "note": "Generováno dle 04-design-intelligence.md (MASTER DESIGN INTELLIGENCE, P0–P16). T05+T11 'Index ticha': Bodoni Moda, mosaz #B08D57, obloukové rámy, evidenční čísla RH-XXXX, static_by_design. Validováno: 1 sdílená dimenze se zubařkou (S1), 0 se stavbami v2. Fingerprint viz níže.",
+      "fingerprint_v2": {
+        "territory": "T05+T11",
+        "ai_mode_adjacency": "none",
+        "dna_33": {
+          "D01": "didone_high_contrast", "D02": "extreme_contrast_pair", "D03": "dramatic_1_5",
+          "D04": "restrained", "D05": "all_caps_tracked_labels", "D06": "measure_locked_60ch",
+          "D07": "asymmetric_tension", "D08": "two_column_asymmetric_30_70", "D09": "fullbleed_with_insets",
+          "D10": "sparse", "D11": "luxury_void", "D12": "long_quiet_then_crescendo",
+          "D13": "arch_lens", "D14": "arch_top_only", "D15": "material_photographic",
+          "D16": "hairline_separation", "D17": "index_numbers", "D18": "near_mono_plus_shock",
+          "D19": "dark_hero_light_body", "D20": "high", "D21": "fullbleed_uncropped",
+          "D22": "panoramic_dominant", "D23": "no_icons_at_all", "D24": "wordmark_plus_single_cta",
+          "D25": "scene_hero_environment", "D26": "whitespace_only", "D27": "plain_document",
+          "D28": "text_link_underline", "D29": "closing_manifesto", "D30": "narrative_chapters",
+          "D31": "static_by_design", "D32": 1, "D33": "recomposed_vertical_poster"
+        },
+        "signature": { "name": "Index ticha (evidenční čísla RH-XXXX + obloukové rámy)", "class": "information_architecture" },
+        "fonts": { "display": "Bodoni Moda", "body": "Archivo", "tier_0_used": false },
+        "palette": [ { "hex": "#F4F0E8", "role": "ground" }, { "hex": "#17181A", "role": "ink" }, { "hex": "#B08D57", "role": "accent (mosaz)" }, { "hex": "#141518", "role": "dark ground" } ],
+        "experimental_licence": 4,
+        "experimental_spend": ["D14", "D18", "D23", "D28"],
+        "scores": { "weighted": 82, "distinctiveness": 8 },
+        "iterations_used": 2,
+        "elements_library": ["P14 (sticky CTA lišta mobile)", "signature: Index ticha — arch frames + RH-XXXX"]
+      }
+    },
+    {
+      "name": "webdo24-brand-2026",
+      "industry": "webová služba (vlastní značka WebDo24)",
+      "file": "/Users/mb/seek_webdo24/index.html",
+      "created": "2026-08-11",
+      "status": "active",
+      "dna": {
+        "hero": "H3",
+        "typography": "T7",
+        "colors": "C7",
+        "services": "S4",
+        "references": "R9",
+        "footer": "F4",
+        "motion": "M4"
+      },
+      "note": "Nová značka WebDo24 (koncept CIFERNÍK — 24h slib jako vizuální identita). Paleta: půlnoční ink #0A0E13 + denní papír #F5F1E8 + signální oranžová úsvitu #FF4D00 (C7 varianta, ne neon/acid). Typografie: Bricolage Grotesque (display) + Instrument Sans (UI) + IBM Plex Mono (časové štítky). HERO typography-led s živým SVG ciferníkem (ručička = scroll progress). Reference R9 = interaktivní demo mockupy vlastní práce (žádné falešné recenze — záměrné). Validováno skriptem: VERDIKT OK (1 sdílená dimenze se zubařkou = references R1 heuristika, reálně R9)."
+    },
+    {
+      "name": "penzion-komarka",
+      "industry": "horský penzion / ubytování",
+      "file": "data/staging/web-penzion-komarka-preview-v1.html",
+      "created": "2026-08-11",
+      "status": "active",
+      "dna": {
+        "hero": "H7",
+        "typography": "T5",
+        "colors": "C4",
+        "services": "S5",
+        "references": "R6",
+        "footer": "F3",
+        "motion": "M3"
+      },
+      "components": ["P12", "P13", "P16", "P17"],
+      "note": "Horský penzion Komárka (Nízké Beskydy, SK). Koncept 'ELEVACE' — výškové štítky sekcí (425/540/1 020 m n. m.) + SVG vrstevnicové kontury hřebene jako opakovaný motiv. Paleta C4: vínová #7A2E3A + krém #F6F0E6 + smrková zeleň #1E2E24 + med #D9A441. Typografie: Zilla Slab (slab serif) + Karla. HERO H7 produktový (fotka jako hlavní prvek, text pod ní). S5 ceník pokojů v EUR, R6 číslovaný rotující citát (P17), F3 obří monogram K, M3 parallax (hero + timeline pozadí). Prvky: P12 lightbox galerie, P13 accordion služeb s fotkou, P16 timeline 'Den v horách', P17 rotace recenzí. Validováno skriptem: VERDIKT OK (0 sdílených se zubařkou a brandem, 1 se stavbami/services-heuristika, 1 s rezidencí/references-heuristika). Heuristika namapovala services S2 a references R8 (custom prvky) — záměr je S5 a R6."
+    }
+  ]
+}
