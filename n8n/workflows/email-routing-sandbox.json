@@ -1,0 +1,50 @@
+{
+  "id": "fcd4c7f4-d2eb-47a8-a518-b2d8a837565b",
+  "name": "WEBDO24 Email Routing — SANDBOX (no real emails)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-routing-sandbox",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wb-email-routing-sandbox",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "email-routing-sandbox"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SANDBOX routing — same rules as the planned production workflow.\n// Payload comes from src/lib/email/sender.ts (sendEmailById).\nconst item = $input.first().json;\nconst tk = item.template_key || (item.metadata && item.metadata.template_key) || 'unknown';\n\nconst ROUTES = {\n  // admin / internal\n  new_lead: 'admin',\n  // customer lifecycle\n  welcome: 'customer',\n  change_request_received: 'customer',\n  change_request_preview_ready: 'customer',\n  change_published: 'customer',\n  change_rejected: 'customer',\n  // billing / payments\n  payment_success: 'billing',\n  payment_failed: 'billing',\n  invoice_created: 'billing',\n  invoice_paid: 'billing',\n  // hosting\n  hosting_expiring_soon: 'billing',\n  hosting_expired: 'billing',\n  hosting_renewed: 'billing',\n};\n\nconst route = ROUTES[tk] || 'system';\nreturn [{\n  json: {\n    ...item,\n    template_key: tk,\n    route,\n    sandbox: true,\n    received_at: new Date().toISOString(),\n  },\n}];"
+      },
+      "id": "route-resolve",
+      "name": "Resolve route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// SANDBOX delivery — NO real email is ever sent.\n// The payload is appended to a local log file, which stands in for the\n// production SMTP/email provider node. Returns 200 so sender.ts marks\n// the queue item as 'sent' (sandbox verification only).\nconst item = $input.first().json;\nconst fs = require('fs');\nconst line = JSON.stringify({\n  ts: new Date().toISOString(),\n  template_key: item.template_key,\n  route: item.route,\n  to: item.to,\n  subject: item.subject,\n  sandbox: true,\n  note: 'SANDBOX — logged only, no real email sent',\n});\nfs.appendFileSync('/tmp/n8n-sandbox-delivery.log', line + '\\n');\nreturn [{\n  json: {\n    ok: true,\n    delivered: 'sandbox_log',\n    route: item.route,\n    template_key: item.template_key,\n    to: item.to,\n  },\n}];"
+      },
+      "id": "deliver-sandbox",
+      "name": "Sandbox delivery (log only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Resolve route", "type": "main", "index": 0 }]]
+    },
+    "Resolve route": {
+      "main": [[{ "node": "Sandbox delivery (log only)", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}
