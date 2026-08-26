@@ -8,16 +8,24 @@ import {
   LayoutDashboard, Globe, FileText, Image as ImageIcon,
   Palette, Contact, History, Inbox, Sparkles,
   ShoppingBag, CreditCard, Settings, LogOut, Zap,
+  Receipt, ClipboardList, Mail,
 } from 'lucide-react'
 
 // Navigace seskupená logicky (premium produkt):
-//   řízení byznysu → obsah webu → finance → nastavení
+//   řízení byznysu → prodej → obsah webu → finance → nastavení
 const navSections = [
   {
     items: [
       { href: '/dashboard', label: 'Přehled', icon: LayoutDashboard },
       { href: '/poptavky', label: 'Poptávky', icon: Inbox },
       { href: '/pozadavky', label: 'Požadavky', icon: Sparkles },
+    ],
+  },
+  {
+    label: 'Prodej',
+    items: [
+      { href: '/nabidky', label: 'Nabídky', icon: Receipt },
+      { href: '/formulare', label: 'Formuláře', icon: ClipboardList },
     ],
   },
   {
@@ -39,7 +47,11 @@ const navSections = [
     ],
   },
   {
-    items: [{ href: '/nastaveni', label: 'Nastavení', icon: Settings }],
+    label: 'Nastavení',
+    items: [
+      { href: '/email', label: 'E-mail', icon: Mail },
+      { href: '/nastaveni', label: 'Nastavení', icon: Settings },
+    ],
   },
 ]
 
