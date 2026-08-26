@@ -92,7 +92,7 @@ async function getCrmProject() {
 }
 
 // --------------------------------------------------------------
-// Hlavní načtení dat pro stránku /zpravy
+// Hlavní načtení dat pro stránku /poptavky
 // --------------------------------------------------------------
 
 export async function getCrmData() {
@@ -202,7 +202,7 @@ export async function updateLeadStatus(leadId: string, status: string) {
     .update({ status, updated_at: new Date().toISOString() })
     .eq('id', leadId)
   if (error) throw new Error(error.message)
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
   return { ok: true }
 }
 
@@ -214,7 +214,45 @@ export async function updateLeadNotes(leadId: string, notes: string) {
     .update({ notes, updated_at: new Date().toISOString() })
     .eq('id', leadId)
   if (error) throw new Error(error.message)
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
+  return { ok: true }
+}
+
+// Pole, která smí zákazník upravovat (jméno/kontakt/detail poptávky).
+// Strukturovaná CRM pole žijí v metadata JSONB (žádná DDL migrace).
+const EDITABLE_META_FIELDS = new Set(['company', 'budget', 'preferred_date', 'request_type', 'location'])
+
+export async function updateLeadField(leadId: string, field: string, value: string) {
+  await requireOwnLead(leadId)
+  const admin = createAdminClient()
+
+  // kontaktní pole jdou přímo do sloupců
+  if (field === 'name' || field === 'phone' || field === 'email') {
+    const { error } = await admin
+      .from('webdo24_leads')
+      .update({ [field]: value.trim() || null, updated_at: new Date().toISOString() })
+      .eq('id', leadId)
+    if (error) throw new Error(error.message)
+    revalidatePath('/poptavky')
+    return { ok: true }
+  }
+
+  // CRM pole → metadata
+  if (!EDITABLE_META_FIELDS.has(field)) throw new Error('Neznámé pole')
+  const { data: lead } = await admin
+    .from('webdo24_leads')
+    .select('metadata')
+    .eq('id', leadId)
+    .maybeSingle()
+  const nextMeta = { ...((lead?.metadata as Record<string, unknown> | null) || {}) }
+  if (value.trim()) nextMeta[field] = value.trim()
+  else delete nextMeta[field]
+  const { error } = await admin
+    .from('webdo24_leads')
+    .update({ metadata: nextMeta, updated_at: new Date().toISOString() })
+    .eq('id', leadId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/poptavky')
   return { ok: true }
 }
 
@@ -236,7 +274,7 @@ export async function sendMessage(leadId: string, content: string) {
     .from('webdo24_messages')
     .insert({ lead_id: leadId, sender_type: 'user', content })
   if (error) throw new Error(error.message)
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
   return { ok: true }
 }
 
@@ -341,7 +379,7 @@ export async function generateLeadReply(leadId: string): Promise<{ reply: string
       .eq('id', (existing[0] as { id: string }).id)
   }
 
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
   return { reply, usedAi }
 }
 
@@ -359,7 +397,7 @@ export async function sendAiReply(leadId: string, content: string) {
     .from('webdo24_leads')
     .update({ ai_reply_used: true, updated_at: new Date().toISOString() })
     .eq('id', leadId)
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
   return { ok: true }
 }
 
@@ -377,7 +415,7 @@ export async function toggleCrmAutomation(key: string, enabled: boolean) {
     { onConflict: 'customer_id,automation_key' },
   )
   if (error) throw new Error(error.message)
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
   return { ok: true }
 }
 
@@ -528,7 +566,7 @@ export async function sendLeadEmailReply(leadId: string, reply: string) {
     },
   })
 
-  revalidatePath('/zpravy')
+  revalidatePath('/poptavky')
   return { ok: true }
 }
 

@@ -27,6 +27,13 @@ import {
   MailPlus,
   Filter,
   Globe,
+  Pencil,
+  Building2,
+  Banknote,
+  CalendarClock,
+  Package,
+  MapPin,
+  User,
 } from 'lucide-react'
 import {
   getCrmData,
@@ -38,6 +45,7 @@ import {
   sendAiReply,
   toggleCrmAutomation,
   sendLeadEmailReply,
+  updateLeadField,
 } from '@/lib/actions/crm'
 
 // --------------------------------------------------------------
@@ -264,6 +272,66 @@ function MessageBubble({ msg }: { msg: Message }) {
 }
 
 // --------------------------------------------------------------
+// Inline editovatelné pole (CRM strukturovaná data)
+// --------------------------------------------------------------
+
+function InlineField({ label, value, icon: Icon, placeholder, onSave, wide }: {
+  label: string
+  value: string
+  icon: React.ComponentType<{ className?: string }>
+  placeholder?: string
+  onSave: (v: string) => void
+  wide?: boolean
+}) {
+  const [draft, setDraft] = useState(value)
+  const [editing, setEditing] = useState(false)
+
+  const commit = () => {
+    setEditing(false)
+    if (draft.trim() !== (value || '').trim()) onSave(draft)
+  }
+
+  return (
+    <div className={`flex items-start gap-2.5 ${wide ? 'col-span-2' : ''}`}>
+      <div className="h-8 w-8 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
+        <Icon className="h-3.5 w-3.5 text-slate-400" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit()
+              if (e.key === 'Escape') {
+                setDraft(value)
+                setEditing(false)
+              }
+            }}
+            placeholder={placeholder}
+            className="w-full mt-0.5 px-2 py-1 rounded-md bg-white/[0.06] border border-cyan-400/30 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-400/40"
+          />
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            className="group w-full flex items-center justify-between gap-2 mt-0.5 text-left"
+            title="Klikni pro úpravu"
+          >
+            <span className={`text-sm truncate ${value ? 'text-slate-200' : 'text-slate-600 italic'}`}>
+              {value || placeholder || '—'}
+            </span>
+            <Pencil className="h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// --------------------------------------------------------------
 // Hlavní komponenta
 // --------------------------------------------------------------
 
@@ -361,6 +429,23 @@ export default function CrmView() {
       setLeads((prev) => prev.map((l) => (l.id === selectedId ? { ...l, notes: notesDraft } : l)))
       setNotesSaved(true)
       setTimeout(() => setNotesSaved(false), 2000)
+    })
+  }
+
+  const updateField = (field: string, value: string) => {
+    if (!selectedId) return
+    startTransition(async () => {
+      await updateLeadField(selectedId, field, value)
+      setLeads((prev) =>
+        prev.map((l) => {
+          if (l.id !== selectedId) return l
+          if (field === 'name' || field === 'phone' || field === 'email') {
+            return { ...l, [field]: value }
+          }
+          return { ...l, metadata: { ...(l.metadata || {}), [field]: value } }
+        }),
+      )
+      notify('Pole aktualizováno')
     })
   }
 
@@ -695,72 +780,122 @@ export default function CrmView() {
                 })}
               </div>
 
-              {/* Obsah detailu */}
-              <div className="flex-1 overflow-y-auto grid lg:grid-cols-[1fr_300px]">
+              {/* Obsah detailu — CRM styl */}
+              <div className="flex-1 overflow-y-auto grid lg:grid-cols-[1fr_320px]">
+                {/* Levá část: poptávka + aktivita */}
                 <div className="flex flex-col min-h-0">
-                  {/* Zpráva z formuláře */}
-                  <div className="px-4 pt-4 pb-2">
+                  {/* Strukturovaná poptávka: co / kolik / kdy / kde */}
+                  <div className="px-4 pt-4 pb-2 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
+                        <InlineField
+                          label="Co poptává"
+                          value={(selected.metadata?.request_type as string) || ''}
+                          icon={Package}
+                          placeholder="Typ práce…"
+                          onSave={(v) => updateField('request_type', v)}
+                        />
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
+                        <InlineField
+                          label="Rozpočet (kolik)"
+                          value={(selected.metadata?.budget as string) || ''}
+                          icon={Banknote}
+                          placeholder="Rozpočet…"
+                          onSave={(v) => updateField('budget', v)}
+                        />
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
+                        <InlineField
+                          label="Termín (kdy)"
+                          value={(selected.metadata?.preferred_date as string) || ''}
+                          icon={CalendarClock}
+                          placeholder="Termín…"
+                          onSave={(v) => updateField('preferred_date', v)}
+                        />
+                      </div>
+                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
+                        <InlineField
+                          label="Lokalita"
+                          value={(selected.metadata?.location as string) || ''}
+                          icon={MapPin}
+                          placeholder="Lokalita…"
+                          onSave={(v) => updateField('location', v)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Zpráva z formuláře */}
                     <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
                       <div className="flex items-center gap-1.5 mb-2">
                         <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Poptávka z webu</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Zpráva</span>
                       </div>
                       <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{selected.message}</p>
-                      {selected.metadata && Object.keys(selected.metadata).length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {Object.entries(selected.metadata).map(([k, v]) => (
-                            <span key={k} className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/10 text-[10px] text-slate-400">
-                              {k}: {String(v)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  {/* Konverzace */}
-                  <div className="flex-1 overflow-y-auto px-4 py-3 min-h-[220px] max-h-[360px]">
-                    {messages.length > 0 ? (
-                      messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-600">
-                        <MessageSquare className="h-7 w-7 mb-2" />
-                        <p className="text-xs">Zatím žádná konverzace</p>
+                  {/* Aktivita / konverzace */}
+                  <div className="flex-1 flex flex-col min-h-[200px]">
+                    <div className="px-4 pt-2 pb-1 flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Aktivita</span>
+                      <span className="text-[10px] text-slate-600">{messages.length} zpráv</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-4 py-2 max-h-[280px]">
+                      {messages.length > 0 ? (
+                        messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-600">
+                          <MessageSquare className="h-7 w-7 mb-2" />
+                          <p className="text-xs">Zatím žádná aktivita</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 border-t border-white/5">
+                      <div className="flex items-end gap-2">
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Napište odpověď zájemci…"
+                          rows={1}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSend()
+                            }
+                          }}
+                          className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/20 focus:border-cyan-400/40 resize-none"
+                        />
+                        <button
+                          onClick={() => handleSend()}
+                          disabled={!replyText.trim() || isPending}
+                          className="p-3 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 text-[#0a0e17] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Send className="h-4 w-4" />
+                        </button>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Kompozér */}
-                  <div className="p-4 border-t border-white/5">
-                    <div className="flex items-end gap-2">
-                      <textarea
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Napište odpověď zájemci…"
-                        rows={1}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            handleSend()
-                          }
-                        }}
-                        className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/20 focus:border-cyan-400/40 resize-none"
-                      />
-                      <button
-                        onClick={() => handleSend()}
-                        disabled={!replyText.trim() || isPending}
-                        className="p-3 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 text-[#0a0e17] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        <Send className="h-4 w-4" />
-                      </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Pravý sloupec: AI + poznámky */}
+                {/* Pravý sloupec: kontakt + AI + poznámky */}
                 <div className="border-t lg:border-t-0 lg:border-l border-white/5 p-4 space-y-4 bg-white/[0.01]">
-                  {/* AI odpověď */}
+                  {/* Kontakt (editable) */}
                   <div>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <User className="h-4 w-4 text-cyan-400" />
+                      <h3 className="text-xs font-semibold text-white">Kontakt</h3>
+                    </div>
+                    <div className="space-y-3">
+                      <InlineField label="Jméno" value={selected.name} icon={User} onSave={(v) => updateField('name', v)} />
+                      <InlineField label="Firma" value={(selected.metadata?.company as string) || ''} icon={Building2} placeholder="Firma…" onSave={(v) => updateField('company', v)} />
+                      <InlineField label="Telefon" value={selected.phone || ''} icon={Phone} placeholder="Telefon…" onSave={(v) => updateField('phone', v)} />
+                      <InlineField label="E-mail" value={selected.email || ''} icon={Mail} placeholder="E-mail…" onSave={(v) => updateField('email', v)} />
+                    </div>
+                  </div>
+
+                  {/* AI odpověď */}
+                  <div className="pt-1 border-t border-white/5">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="h-4 w-4 text-cyan-400" />
@@ -817,7 +952,7 @@ export default function CrmView() {
                   </div>
 
                   {/* Poznámky */}
-                  <div>
+                  <div className="pt-1 border-t border-white/5">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
                         <StickyNote className="h-4 w-4 text-amber-400" />

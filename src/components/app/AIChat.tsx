@@ -176,7 +176,7 @@ export default function AIChat({
           <div className="mb-8">
             {newLeadsCount > 0 && (
               <Link
-                href="/zpravy"
+                href="/poptavky"
                 className="inline-flex items-center gap-2 mb-4 rounded-full bg-blue-50 border border-blue-100 px-4 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />

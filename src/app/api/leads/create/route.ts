@@ -18,6 +18,9 @@ export async function POST(request: Request) {
       email,
       message,
       source = 'web',
+      company,
+      budget,
+      preferred_date,
     } = body as {
       project_id?: string
       name?: string
@@ -25,6 +28,9 @@ export async function POST(request: Request) {
       email?: string
       message?: string
       source?: string
+      company?: string
+      budget?: string
+      preferred_date?: string
     }
 
     if (!project_id || !name || !message) {
@@ -33,6 +39,24 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    // ── Strukturovaná pole z textu poptávky (formulář na webu) ──
+    // Web posílá řádky „Lokalita: …“, „Typ práce: …“, „Termín: …“ — parsujeme
+    // je do metadata, aby CRM ukázalo „co poptává / kdy / kde“ strukturovaně.
+    const msg = message.trim()
+    const pick = (label: string) => {
+      const m = msg.match(new RegExp(`${label}:\\s*(.+)`, 'i'))
+      return m ? m[1].trim() : null
+    }
+    const metadata: Record<string, unknown> = {}
+    const location = pick('Lokalita')
+    const requestType = pick('Typ práce') || pick('Job')
+    const parsedDate = pick('Termín')
+    if (location) metadata.location = location
+    if (requestType) metadata.request_type = requestType
+    if (company) metadata.company = company.trim()
+    if (budget) metadata.budget = budget.trim()
+    if (preferred_date || parsedDate) metadata.preferred_date = preferred_date?.trim() || parsedDate
 
     const admin = createAdminClient()
 
@@ -55,9 +79,10 @@ export async function POST(request: Request) {
         name: name.trim(),
         phone: phone?.trim() || null,
         email: email?.trim() || null,
-        message: message.trim(),
+        message: msg,
         source: ['web', 'form', 'whatsapp', 'email', 'phone'].includes(source) ? source : 'web',
         status: 'new',
+        metadata,
       })
       .select('id')
       .single()

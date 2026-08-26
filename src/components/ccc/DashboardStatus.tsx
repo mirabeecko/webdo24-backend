@@ -118,7 +118,7 @@ export default async function DashboardStatus() {
 
         {/* Poptávky */}
         <Link
-          href="/zpravy"
+          href="/poptavky"
           className="bg-[#0d1525] rounded-2xl border border-white/5 p-5 hover:border-cyan-400/20 transition-colors"
         >
           <div className="flex items-center gap-2.5 mb-3">

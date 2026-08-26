@@ -145,7 +145,7 @@ const templates: Record<EmailTemplateKey, EmailTemplate> = {
         ${d.leadPhone ? `Telefon: ${d.leadPhone}<br>` : ''}
         <p style="margin:12px 0 0">${d.leadMessage}</p>
       </div>
-      <a href="${appUrl}/zpravy/${d.leadId}" class="btn">Odpovědět</a>
+      <a href="${appUrl}/poptavky" class="btn">Odpovědět</a>
     `),
     text: (d) => stripHtml(templates.new_lead.html(d)),
   },
