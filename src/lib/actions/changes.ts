@@ -76,6 +76,8 @@ export async function createChangeRequest(rawInput: string): Promise<{
   id: string
   category: ChangeCategory
   confidence: number
+  status: string
+  errorMessage: string | null
 }> {
   const ctx = await getCallerProject()
   if (!ctx) throw new Error('not_authenticated')
@@ -142,11 +144,21 @@ export async function createChangeRequest(rawInput: string): Promise<{
   revalidatePath('/pozadavky')
   revalidatePath('/dashboard')
 
+  // Finální stav po requestu (klasifikace / selhání pipeline) — UI ho
+  // použije místo optimistického "Analyzujeme".
+  const { data: final } = await admin
+    .from('webdo24_change_requests')
+    .select('status, error_message')
+    .eq('id', data.id)
+    .single()
+
   return {
     ok: true,
     id: data.id,
     category: classification.category,
     confidence: classification.confidence,
+    status: (final?.status as string) ?? 'classifying',
+    errorMessage: (final?.error_message as string | null) ?? null,
   }
 }
 

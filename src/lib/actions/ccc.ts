@@ -9,7 +9,7 @@
 // (requireCapability), actions jen dodají projectId.
 // ============================================
 
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMembership } from '@/lib/ccc/guard'
 import { listPages, getPageContent, getCompanyProfile, getBrandProfile } from '@/lib/ccc/registry'
@@ -50,25 +50,22 @@ const EDIT_ROLES: readonly MembershipRole[] = ['owner', 'admin', 'editor']
 const PUBLISH_ROLES: readonly MembershipRole[] = ['owner', 'admin']
 
 export async function getCccContext(): Promise<CccContext | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) return null
 
+  // customer + projekty v JEDNOM dotazu (embedded resource) — místo
+  // dvou sekvenčních SELECTů; membership je cacheovaný per-request.
   const admin = createAdminClient()
   const { data: customer } = await admin
     .from('webdo24_customers')
-    .select('id')
+    .select('id, webdo24_projects(id, slug)')
     .eq('user_id', user.id)
-    .single()
+    .order('created_at', { referencedTable: 'webdo24_projects', ascending: false })
+    .maybeSingle()
   if (!customer) return null
 
-  const { data: project } = await admin
-    .from('webdo24_projects')
-    .select('id, slug')
-    .eq('customer_id', customer.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const projects = (customer.webdo24_projects as Array<{ id: string; slug: string | null }> | null) ?? []
+  const project = projects[0] ?? null
   if (!project) return null
 
   const membership = await getMembership(user.id, customer.id)
@@ -79,7 +76,7 @@ export async function getCccContext(): Promise<CccContext | null> {
     userId: user.id,
     customerId: customer.id,
     projectId: project.id,
-    projectSlug: (project.slug as string | null) ?? null,
+    projectSlug: project.slug ?? null,
     role,
     canEdit: EDIT_ROLES.includes(role),
     canPublish: PUBLISH_ROLES.includes(role),

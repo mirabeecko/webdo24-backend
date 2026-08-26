@@ -1,25 +1,34 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getCurrentUser } from '@/lib/supabase/server'
 import type { ChangeRequest } from '@/types'
 
 export async function getDashboardData() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) return null
 
+  // customer + projekt v JEDNOM dotazu (embedded resource) — ušetří
+  // jeden sekvenční round-trip na vzdálenou Supabase.
   const { data: customer } = await supabase
     .from('webdo24_customers')
-    .select('id, name, company, has_pro_pack')
+    .select(
+      'id, name, company, has_pro_pack, webdo24_projects(id, title, slug, domain, production_url, status)',
+    )
     .eq('user_id', user.id)
-    .single()
+    .order('created_at', { referencedTable: 'webdo24_projects', ascending: false })
+    .maybeSingle()
   if (!customer) return null
 
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, title, slug, domain, production_url, status')
-    .eq('customer_id', customer.id)
-    .single()
+  const projects = (customer.webdo24_projects as Array<{
+    id: string
+    title: string
+    slug: string | null
+    domain: string | null
+    production_url: string | null
+    status: string | null
+  }> | null) ?? []
+  const project = projects[0] ?? null
   if (!project) return null
 
   const [
@@ -32,7 +41,7 @@ export async function getDashboardData() {
   ] = await Promise.all([
     supabase
       .from('webdo24_leads')
-      .select('*', { count: 'exact', head: true })
+      .select('*', { count: 'planned', head: true })
       .eq('project_id', project.id)
       .eq('status', 'new'),
     supabase
