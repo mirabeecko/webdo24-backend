@@ -150,6 +150,20 @@ const templates: Record<EmailTemplateKey, EmailTemplate> = {
     text: (d) => stripHtml(templates.new_lead.html(d)),
   },
 
+  lead_reply: {
+    key: 'lead_reply',
+    subject: 'Děkujeme za vaši poptávku',
+    html: (d) => layout('Děkujeme za vaši poptávku', `
+      <p>Dobrý den${d.leadName ? `, <strong>${d.leadName}</strong>` : ''},</p>
+      <p>děkujeme za vaši poptávku z webu ${d.companyName || ''}.</p>
+      <div class="box">
+        ${String(d.reply || '').split('\n').map((line) => `<p style="margin:0 0 8px">${line}</p>`).join('')}
+      </div>
+      <p>Budeme se vám ozývat s konkrétní nabídkou co nejdříve.</p>
+    `),
+    text: (d) => stripHtml(templates.lead_reply.html(d)),
+  },
+
   invoice_created: {
     key: 'invoice_created',
     subject: 'Byla vytvořena nová faktura',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { queueEmailToCustomer } from '@/lib/email/queue'
+import { generateAutoReplyForLead } from '@/lib/actions/crm'
 
 /**
  * Public endpoint for creating a lead from a customer website contact form.
@@ -78,6 +79,21 @@ export async function POST(request: Request) {
         leadEmail: email?.trim() || '',
         leadMessage: message.trim(),
       }).catch((err) => console.error('[leads/create] notification email failed:', err))
+    }
+
+    // Automatická AI odpověď (fire-and-forget — nikdy neblokuje odpověď
+    // formuláře; pokud má zákazník zapnuté ai_reply/auto_reply, vygeneruje
+    // se návrh odpovědi do CRM)
+    if (project.customer_id) {
+      generateAutoReplyForLead({
+        leadId: lead.id,
+        projectId: project.id,
+        customerId: project.customer_id,
+        name: name.trim(),
+        phone: phone?.trim(),
+        email: email?.trim(),
+        message: message.trim(),
+      })
     }
 
     return NextResponse.json({ success: true, lead_id: lead.id })

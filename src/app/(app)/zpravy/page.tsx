@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import MessagesView from '@/components/app/MessagesView'
+import CrmView from '@/components/app/CrmView'
 
 export default function ZpravyPage() {
-  return <MessagesView />
+  return <CrmView />
 }

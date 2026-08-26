@@ -7,6 +7,7 @@ export type EmailTemplateKey =
   | 'payment_success'
   | 'payment_failed'
   | 'new_lead'
+  | 'lead_reply'
   | 'invoice_created'
   | 'invoice_paid'
   | 'hosting_expiring_soon'
