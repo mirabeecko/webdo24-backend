@@ -31,7 +31,8 @@ const navSections = [
   {
     label: 'Web',
     items: [
-      { href: '/web', label: 'Můj web', icon: Globe },
+      { href: '/weby', label: 'Weby', icon: Globe },
+      { href: '/web', label: 'Můj web', icon: LayoutDashboard },
       { href: '/obsah', label: 'Obsah', icon: FileText },
       { href: '/media', label: 'Média', icon: ImageIcon },
       { href: '/vzhled', label: 'Vzhled značky', icon: Palette },
