@@ -28,6 +28,16 @@ input::placeholder, textarea::placeholder {
   color: rgba(255,255,255,0.25) !important;
 }
 
+/* Světlé (veřejné) formuláře — černý text v polích na bílém pozadí.
+   Přepisuje globální bílý text výše (vyšší specificita). */
+.form-light input, .form-light textarea, .form-light select {
+  color: #0f172a !important;
+  background: #ffffff !important;
+}
+.form-light input::placeholder, .form-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
 /* AI thinking dots animation */
 @keyframes aiDotPulse {
   0%, 60%, 100% { transform: scale(1); opacity: 0.35; }

@@ -199,7 +199,7 @@ export default function FormBuilder({ formId }: { formId: string }) {
             <Eye className="h-4 w-4 text-emerald-400" />
             <h2 className="text-sm font-semibold text-white">Živý náhled</h2>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
+          <div className="form-light bg-white rounded-2xl p-6 shadow-lg">
             <h3 className="text-lg font-bold text-slate-900 mb-1">{form.name || 'Formulář'}</h3>
             {form.description && <p className="text-sm text-slate-500 mb-5">{form.description}</p>}
             <div className="space-y-3">
@@ -209,13 +209,13 @@ export default function FormBuilder({ formId }: { formId: string }) {
                     {f.label || 'Pole'} {f.required && <span className="text-red-500">*</span>}
                   </label>
                   {f.type === 'textarea' ? (
-                    <textarea readOnly placeholder={f.placeholder} rows={3} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50" />
+                    <textarea readOnly placeholder={f.placeholder} rows={3} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-900 bg-white" />
                   ) : f.type === 'select' ? (
-                    <select className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50 text-slate-400">
+                    <select className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white text-slate-900">
                       <option>Vyberte…</option>
                     </select>
                   ) : (
-                    <input readOnly placeholder={f.placeholder} type={f.type === 'date' ? 'date' : 'text'} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50" />
+                    <input readOnly placeholder={f.placeholder} type={f.type === 'date' ? 'date' : 'text'} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-900 bg-white" />
                   )}
                 </div>
               ))}
