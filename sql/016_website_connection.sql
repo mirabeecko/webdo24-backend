@@ -35,7 +35,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_webdo24_projects_site_id
 
 -- Zpětně doplň site_id existujícím projektům (bez kolize s novými).
 UPDATE webdo24_projects
-SET site_id = 'site_' || encode(substr(md5(id::text), 1, 4), 'hex')
+SET site_id = 'site_' || substr(md5(id::text), 1, 8)
 WHERE site_id IS NULL;
 
 -- ── 2. Website Connection Run (každé spuštění průvodce) ──
