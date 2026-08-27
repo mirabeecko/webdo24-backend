@@ -3,7 +3,8 @@
 import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Plus, Copy, Trash2, Pencil, ExternalLink, Inbox, FileText, LinkIcon } from 'lucide-react'
-import { listForms, createForm, duplicateForm, deleteForm, type CrmForm } from '@/lib/actions/sales'
+import { listForms, createForm, createFormFromTemplate, duplicateForm, deleteForm, type CrmForm } from '@/lib/actions/sales'
+import { FORM_TEMPLATES } from '@/lib/form-templates'
 
 function formPublicUrl(id: string) {
   return `${window.location.origin}/f/${id}`
@@ -35,6 +36,12 @@ export default function FormsView() {
   const handleCreate = () =>
     startTransition(async () => {
       const { id } = await createForm('Nový formulář')
+      window.location.href = `/formulare/${id}`
+    })
+
+  const handleLoadTemplate = (key: string) =>
+    startTransition(async () => {
+      const { id } = await createFormFromTemplate(key)
       window.location.href = `/formulare/${id}`
     })
 
@@ -80,6 +87,35 @@ export default function FormsView() {
           <Plus className="h-4 w-4" /> Nový formulář
         </button>
       </div>
+
+      {/* Předpřipravené oborové šablony */}
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Předpřipravené šablony</h2>
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-300 border border-cyan-400/20 uppercase">v ceně</span>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {FORM_TEMPLATES.map((t) => (
+            <div key={t.key} className="bg-[#0d1525]/80 border border-white/5 rounded-2xl p-4 flex flex-col hover:border-cyan-400/20 transition-colors">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-lg leading-none">{t.icon}</span>
+                <h3 className="font-semibold text-white text-sm leading-tight">{t.name}</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-3 flex-1">{t.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-600">{t.fields.length} polí</span>
+                <button
+                  onClick={() => handleLoadTemplate(t.key)}
+                  disabled={isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 text-xs font-medium hover:bg-cyan-400/20 transition-colors disabled:opacity-50"
+                >
+                  <Plus className="h-3 w-3" /> Načíst šablonu
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {forms.length > 0 ? (
         <div className="grid sm:grid-cols-2 gap-3">

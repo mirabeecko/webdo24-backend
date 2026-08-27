@@ -2,6 +2,7 @@
 
 // ============================================
 // Prodejní modul: E-mail (SMTP), formuláře, nabídky
+// Ukládá se do existující tabulky (sales-store, bez DDL).
 // ============================================
 
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -9,9 +10,22 @@ import { getCurrentUser } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { sendSmtpEmail, smtpConfigured, type SmtpSettings } from '@/lib/email/smtp'
 import { quoteToHtml } from '@/lib/email/quote-html'
+import {
+  getStoredEmailSettings,
+  putStoredEmailSettings,
+  listStoredForms,
+  getStoredForm,
+  putStoredForm,
+  deleteStoredForm,
+  listStoredQuotes,
+  getStoredQuote,
+  putStoredQuote,
+  deleteStoredQuote,
+} from '@/lib/sales-store'
+import { getFormTemplate } from '@/lib/form-templates'
 
 // --------------------------------------------------------------
-// Typy
+// Typy (rozhraní se nemění)
 // --------------------------------------------------------------
 
 export interface FormField {
@@ -62,84 +76,58 @@ export interface EmailSettings extends SmtpSettings {
 }
 
 // --------------------------------------------------------------
-// Kontext (user → customer → project)
+// Kontext
 // --------------------------------------------------------------
 
 async function getSalesContext() {
   const user = await getCurrentUser()
   if (!user) return null
   const admin = createAdminClient()
+  // customer + projekty v JEDNOM dotazu (embedded resource)
   const { data: customer } = await admin
     .from('webdo24_customers')
-    .select('id, name, email')
+    .select('id, name, email, webdo24_projects(id, title)')
     .eq('user_id', user.id)
+    .order('created_at', { referencedTable: 'webdo24_projects', ascending: false })
     .maybeSingle()
   if (!customer) return null
-  const { data: project } = await admin
-    .from('webdo24_projects')
-    .select('id, title')
-    .eq('customer_id', customer.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const projects = (customer.webdo24_projects as Array<{ id: string; title: string }> | null) ?? []
+  const project = projects[0] ?? null
   return {
     customerId: customer.id as string,
     customerName: (customer.name as string) || '',
     customerEmail: (customer.email as string) || '',
     projectId: project?.id as string | null,
-    projectTitle: (project?.title as string) || '',
+    projectTitle: project?.title || '',
   }
 }
 
+async function requireContext() {
+  const ctx = await getSalesContext()
+  if (!ctx) throw new Error('not_authenticated')
+  return ctx
+}
+
 // --------------------------------------------------------------
-// E-mail (SMTP) nastavení
+// E-mail (SMTP)
 // --------------------------------------------------------------
 
 export async function getEmailSettings(): Promise<EmailSettings | null> {
   const ctx = await getSalesContext()
   if (!ctx) return null
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('webdo24_email_settings')
-    .select('*')
-    .eq('customer_id', ctx.customerId)
-    .maybeSingle()
-  return (data as EmailSettings) || null
+  return (await getStoredEmailSettings(ctx.customerId)) as EmailSettings | null
 }
 
 export async function saveEmailSettings(settings: EmailSettings): Promise<{ ok: boolean }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { error } = await admin.from('webdo24_email_settings').upsert(
-    {
-      customer_id: ctx.customerId,
-      smtp_host: settings.smtp_host || null,
-      smtp_port: settings.smtp_port || 587,
-      smtp_secure: settings.smtp_secure || 'tls',
-      smtp_user: settings.smtp_user || null,
-      smtp_pass: settings.smtp_pass || null,
-      from_name: settings.from_name || null,
-      from_email: settings.from_email || null,
-      signature_html: settings.signature_html || null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'customer_id' },
-  )
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  await putStoredEmailSettings(ctx.customerId, { ...settings, updated_at: new Date().toISOString() })
   revalidatePath('/email')
   return { ok: true }
 }
 
 export async function testEmail(to: string): Promise<{ ok: boolean; message: string }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { data: settings } = await admin
-    .from('webdo24_email_settings')
-    .select('*')
-    .eq('customer_id', ctx.customerId)
-    .maybeSingle()
+  const ctx = await requireContext()
+  const settings = (await getStoredEmailSettings(ctx.customerId)) as EmailSettings | null
   if (!smtpConfigured(settings)) {
     return { ok: false, message: 'SMTP není nastaveno — doplňte host a e-mail odesílatele.' }
   }
@@ -163,113 +151,101 @@ export async function testEmail(to: string): Promise<{ ok: boolean; message: str
 export async function listForms(): Promise<CrmForm[]> {
   const ctx = await getSalesContext()
   if (!ctx) return []
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('webdo24_forms')
-    .select('*')
-    .eq('customer_id', ctx.customerId)
-    .order('created_at', { ascending: false })
-  return (data as CrmForm[]) || []
+  return (await listStoredForms(ctx.customerId)) as unknown as CrmForm[]
 }
 
 export async function getForm(formId: string): Promise<CrmForm | null> {
   const ctx = await getSalesContext()
   if (!ctx) return null
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('webdo24_forms')
-    .select('*')
-    .eq('id', formId)
-    .eq('customer_id', ctx.customerId)
-    .maybeSingle()
-  return (data as CrmForm) || null
+  return (await getStoredForm(ctx.customerId, formId)) as unknown as CrmForm | null
 }
 
 export async function createForm(name: string): Promise<{ id: string }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('webdo24_forms')
-    .insert({
-      customer_id: ctx.customerId,
-      project_id: ctx.projectId,
-      name: name || 'Nový formulář',
-      fields: [
-        { id: crypto.randomUUID(), label: 'Jméno', type: 'text', required: true, placeholder: 'Vaše jméno' },
-        { id: crypto.randomUUID(), label: 'E-mail', type: 'email', required: true, placeholder: 'vas@email.cz' },
-        { id: crypto.randomUUID(), label: 'Zpráva', type: 'textarea', required: true, placeholder: 'Vaše zpráva' },
-      ],
-    })
-    .select('id')
-    .single()
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+  await putStoredForm(ctx.customerId, id, {
+    name: name || 'Nový formulář',
+    description: '',
+    fields: [
+      { id: crypto.randomUUID(), label: 'Jméno', type: 'text', required: true, placeholder: 'Vaše jméno' },
+      { id: crypto.randomUUID(), label: 'E-mail', type: 'email', required: true, placeholder: 'vas@email.cz' },
+      { id: crypto.randomUUID(), label: 'Telefon', type: 'phone', required: false, placeholder: '+420 …' },
+      { id: crypto.randomUUID(), label: 'Zpráva', type: 'textarea', required: true, placeholder: 'Vaše zpráva' },
+    ],
+    submit_button: 'Odeslat poptávku',
+    success_message: 'Děkujeme, formulář byl odeslán.',
+    status: 'active',
+    project_id: ctx.projectId,
+    created_at: now,
+    updated_at: now,
+  })
   revalidatePath('/formulare')
-  return { id: data.id as string }
+  return { id }
+}
+
+export async function createFormFromTemplate(templateKey: string): Promise<{ id: string }> {
+  const ctx = await requireContext()
+  const template = getFormTemplate(templateKey)
+  if (!template) throw new Error('Šablona nenalezena')
+
+  const fields: FormField[] = template.fields.map((tf) => ({
+    id: crypto.randomUUID(),
+    label: tf.label,
+    type: tf.type,
+    required: !!tf.required,
+    placeholder: tf.placeholder || '',
+    ...(tf.options ? { options: tf.options } : {}),
+  }))
+
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+  await putStoredForm(ctx.customerId, id, {
+    name: template.name,
+    description: template.description,
+    fields,
+    submit_button: template.submit_button,
+    success_message: 'Děkujeme, formulář byl odeslán.',
+    status: 'active',
+    project_id: ctx.projectId,
+    created_at: now,
+    updated_at: now,
+  })
+  revalidatePath('/formulare')
+  return { id }
 }
 
 export async function updateForm(formId: string, patch: Partial<CrmForm>): Promise<{ ok: boolean }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const allowed: Record<string, unknown> = {}
-  if (typeof patch.name === 'string') allowed.name = patch.name
-  if (typeof patch.description === 'string' || patch.description === null) allowed.description = patch.description
-  if (Array.isArray(patch.fields)) allowed.fields = patch.fields
-  if (typeof patch.submit_button === 'string') allowed.submit_button = patch.submit_button
-  if (typeof patch.success_message === 'string') allowed.success_message = patch.success_message
-  if (patch.status === 'active' || patch.status === 'archived') allowed.status = patch.status
-  allowed.updated_at = new Date().toISOString()
-  const { error } = await admin
-    .from('webdo24_forms')
-    .update(allowed)
-    .eq('id', formId)
-    .eq('customer_id', ctx.customerId)
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  const existing = await getStoredForm(ctx.customerId, formId)
+  if (!existing) throw new Error('Formulář nenalezen')
+  const next = { ...existing, ...patch, updated_at: new Date().toISOString() }
+  await putStoredForm(ctx.customerId, formId, next)
   revalidatePath('/formulare')
   return { ok: true }
 }
 
 export async function duplicateForm(formId: string): Promise<{ id: string }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { data: src } = await admin
-    .from('webdo24_forms')
-    .select('*')
-    .eq('id', formId)
-    .eq('customer_id', ctx.customerId)
-    .maybeSingle()
+  const ctx = await requireContext()
+  const src = await getStoredForm(ctx.customerId, formId)
   if (!src) throw new Error('Formulář nenalezen')
-  const { data, error } = await admin
-    .from('webdo24_forms')
-    .insert({
-      customer_id: ctx.customerId,
-      project_id: ctx.projectId,
-      name: `${src.name} (kopie)`,
-      description: src.description,
-      fields: src.fields,
-      submit_button: src.submit_button,
-      success_message: src.success_message,
-      status: 'active',
-    })
-    .select('id')
-    .single()
-  if (error) throw new Error(error.message)
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+  await putStoredForm(ctx.customerId, id, {
+    ...src,
+    name: `${src.name} (kopie)`,
+    status: 'active',
+    project_id: ctx.projectId,
+    created_at: now,
+    updated_at: now,
+  })
   revalidatePath('/formulare')
-  return { id: data.id as string }
+  return { id }
 }
 
 export async function deleteForm(formId: string): Promise<{ ok: boolean }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('webdo24_forms')
-    .delete()
-    .eq('id', formId)
-    .eq('customer_id', ctx.customerId)
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  await deleteStoredForm(ctx.customerId, formId)
   revalidatePath('/formulare')
   return { ok: true }
 }
@@ -281,140 +257,83 @@ export async function deleteForm(formId: string): Promise<{ ok: boolean }> {
 export async function listQuotes(): Promise<Quote[]> {
   const ctx = await getSalesContext()
   if (!ctx) return []
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('webdo24_quotes')
-    .select('*')
-    .eq('customer_id', ctx.customerId)
-    .order('created_at', { ascending: false })
-  return (data as Quote[]) || []
+  return (await listStoredQuotes(ctx.customerId)) as unknown as Quote[]
 }
 
 export async function getQuote(quoteId: string): Promise<Quote | null> {
   const ctx = await getSalesContext()
   if (!ctx) return null
-  const admin = createAdminClient()
-  const { data } = await admin
-    .from('webdo24_quotes')
-    .select('*')
-    .eq('id', quoteId)
-    .eq('customer_id', ctx.customerId)
-    .maybeSingle()
-  return (data as Quote) || null
+  return (await getStoredQuote(ctx.customerId, quoteId)) as unknown as Quote | null
 }
 
 export async function createQuote(): Promise<{ id: string }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const number = `N-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`
-  const { data, error } = await admin
-    .from('webdo24_quotes')
-    .insert({
-      customer_id: ctx.customerId,
-      project_id: ctx.projectId,
-      number,
-      title: 'Nabídka',
-      items: [
-        { id: crypto.randomUUID(), name: 'Položka 1', qty: 1, unit_price: 0 },
-      ],
-    })
-    .select('id')
-    .single()
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+  await putStoredQuote(ctx.customerId, id, {
+    number: `N-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+    title: 'Nabídka',
+    client_name: '',
+    client_email: '',
+    valid_until: '',
+    note: '',
+    items: [{ id: crypto.randomUUID(), name: 'Položka 1', qty: 1, unit_price: 0 }],
+    vat_rate: 21,
+    status: 'draft',
+    project_id: ctx.projectId,
+    created_at: now,
+    updated_at: now,
+  })
   revalidatePath('/nabidky')
-  return { id: data.id as string }
+  return { id }
 }
 
 export async function updateQuote(quoteId: string, patch: Partial<Quote>): Promise<{ ok: boolean }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const allowed: Record<string, unknown> = {}
-  const strFields = ['title', 'client_name', 'client_email', 'valid_until', 'note', 'number', 'status'] as const
-  for (const f of strFields) {
-    if (typeof (patch as Record<string, unknown>)[f] === 'string') allowed[f] = (patch as Record<string, unknown>)[f]
-  }
-  if (Array.isArray(patch.items)) allowed.items = patch.items
-  if (typeof patch.vat_rate === 'number') allowed.vat_rate = patch.vat_rate
-  allowed.updated_at = new Date().toISOString()
-  const { error } = await admin
-    .from('webdo24_quotes')
-    .update(allowed)
-    .eq('id', quoteId)
-    .eq('customer_id', ctx.customerId)
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  const existing = await getStoredQuote(ctx.customerId, quoteId)
+  if (!existing) throw new Error('Nabídka nenalezena')
+  const next = { ...existing, ...patch, updated_at: new Date().toISOString() }
+  await putStoredQuote(ctx.customerId, quoteId, next)
   revalidatePath('/nabidky')
   return { ok: true }
 }
 
 export async function duplicateQuote(quoteId: string): Promise<{ id: string }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { data: src } = await admin
-    .from('webdo24_quotes')
-    .select('*')
-    .eq('id', quoteId)
-    .eq('customer_id', ctx.customerId)
-    .maybeSingle()
+  const ctx = await requireContext()
+  const src = await getStoredQuote(ctx.customerId, quoteId)
   if (!src) throw new Error('Nabídka nenalezena')
-  const { data, error } = await admin
-    .from('webdo24_quotes')
-    .insert({
-      customer_id: ctx.customerId,
-      project_id: ctx.projectId,
-      number: `${src.number || 'N'}-K`,
-      title: `${src.title} (kopie)`,
-      client_name: src.client_name,
-      client_email: src.client_email,
-      valid_until: src.valid_until,
-      note: src.note,
-      items: src.items,
-      vat_rate: src.vat_rate,
-      status: 'draft',
-    })
-    .select('id')
-    .single()
-  if (error) throw new Error(error.message)
+  const id = crypto.randomUUID()
+  const now = new Date().toISOString()
+  await putStoredQuote(ctx.customerId, id, {
+    ...src,
+    number: `${src.number || 'N'}-K`,
+    title: `${src.title} (kopie)`,
+    status: 'draft',
+    project_id: ctx.projectId,
+    created_at: now,
+    updated_at: now,
+  })
   revalidatePath('/nabidky')
-  return { id: data.id as string }
+  return { id }
 }
 
 export async function deleteQuote(quoteId: string): Promise<{ ok: boolean }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('webdo24_quotes')
-    .delete()
-    .eq('id', quoteId)
-    .eq('customer_id', ctx.customerId)
-  if (error) throw new Error(error.message)
+  const ctx = await requireContext()
+  await deleteStoredQuote(ctx.customerId, quoteId)
   revalidatePath('/nabidky')
   return { ok: true }
 }
 
-/** Odešle nabídku jako HTML e-mail zákazníkovi (přes SMTP zákazníka). */
 export async function sendQuoteEmail(quoteId: string): Promise<{ ok: boolean; message: string }> {
-  const ctx = await getSalesContext()
-  if (!ctx) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-
-  const [{ data: quote }, { data: settings }] = await Promise.all([
-    admin.from('webdo24_quotes').select('*').eq('id', quoteId).eq('customer_id', ctx.customerId).maybeSingle(),
-    admin.from('webdo24_email_settings').select('*').eq('customer_id', ctx.customerId).maybeSingle(),
-  ])
+  const ctx = await requireContext()
+  const quote = await getStoredQuote(ctx.customerId, quoteId)
+  const settings = (await getStoredEmailSettings(ctx.customerId)) as EmailSettings | null
 
   if (!quote) throw new Error('Nabídka nenalezena')
   if (!quote.client_email) return { ok: false, message: 'Nabídka nemá e-mail klienta — doplňte ho.' }
   if (!smtpConfigured(settings)) return { ok: false, message: 'SMTP není nastaveno — doplňte údaje v E-mail.' }
 
-  const html = quoteToHtml({
-    quote: quote as Quote,
-    companyName: ctx.projectTitle || ctx.customerName,
-  })
-
+  const html = quoteToHtml({ quote: quote as unknown as Quote, companyName: ctx.projectTitle || ctx.customerName })
   try {
     await sendSmtpEmail({
       settings: settings as SmtpSettings,
@@ -423,10 +342,7 @@ export async function sendQuoteEmail(quoteId: string): Promise<{ ok: boolean; me
       subject: `${quote.number || 'Nabídka'} — ${quote.title}`,
       html,
     })
-    await admin
-      .from('webdo24_quotes')
-      .update({ status: 'sent', updated_at: new Date().toISOString() })
-      .eq('id', quoteId)
+    await putStoredQuote(ctx.customerId, quoteId, { ...quote, status: 'sent', updated_at: new Date().toISOString() })
     revalidatePath('/nabidky')
     return { ok: true, message: `Nabídka odeslána na ${quote.client_email}` }
   } catch (err) {

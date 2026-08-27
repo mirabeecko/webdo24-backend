@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { queueEmailToCustomer } from '@/lib/email/queue'
 import { generateAutoReplyForLead } from '@/lib/actions/crm'
+import { getPublicFormCustomer, getPublicStoredForm } from '@/lib/sales-store'
 import type { FormField } from '@/lib/actions/sales'
 
 /**
@@ -13,20 +14,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id: formId } = await params
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
 
-    const admin = createAdminClient()
-    const { data: form } = await admin
-      .from('webdo24_forms')
-      .select('id, customer_id, project_id, name, fields, success_message')
-      .eq('id', formId)
-      .eq('status', 'active')
-      .maybeSingle()
-
+    const form = await getPublicStoredForm(formId)
     if (!form) {
       return NextResponse.json({ error: 'Formulář neexistuje' }, { status: 404 })
     }
+    const owner = await getPublicFormCustomer(formId)
+    const projectId = owner?.project_id || null
+    const customerId = owner?.customer_id || null
 
     const fields = (form.fields as FormField[]) || []
-    // z odpovědí najdi jméno / e-mail / telefon (heuristika)
     let name = ''
     let email = ''
     let phone = ''
@@ -34,9 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     for (const f of fields) {
       const v = String(body[f.id] ?? '').trim()
       if (!v) continue
-      if (!name && (f.label.toLowerCase().includes('jméno') || f.label.toLowerCase().includes('jmeno') || f.type === 'text')) {
-        if (f.label.toLowerCase().includes('jméno') || f.label.toLowerCase().includes('jmeno')) name = v
-      }
+      const low = f.label.toLowerCase()
+      if (!name && (low.includes('jméno') || low.includes('jmeno'))) name = v
       if (!email && f.type === 'email') email = v
       if (!phone && f.type === 'phone') phone = v
       lines.push(`${f.label}: ${v}`)
@@ -46,17 +41,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const message = lines.join('\n') || 'Poptávka z formuláře'
 
+    const admin = createAdminClient()
     const { data: lead, error: leadError } = await admin
       .from('webdo24_leads')
       .insert({
-        project_id: form.project_id,
+        project_id: projectId,
         name,
         phone: phone || null,
         email: email || null,
         message,
         source: 'form',
         status: 'new',
-        metadata: { form_id: form.id, form_name: form.name, raw: body },
+        metadata: { form_id: formId, form_name: form.name, raw: body },
       })
       .select('id')
       .single()
@@ -65,9 +61,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Chyba při ukládání' }, { status: 500 })
     }
 
-    // notifikace majiteli + případná AI auto-odpověď
-    if (form.customer_id) {
-      queueEmailToCustomer(form.customer_id, 'new_lead', {
+    if (customerId) {
+      queueEmailToCustomer(customerId, 'new_lead', {
         leadId: lead.id,
         leadName: name,
         leadPhone: phone,
@@ -76,8 +71,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }).catch(() => {})
       generateAutoReplyForLead({
         leadId: lead.id,
-        projectId: form.project_id,
-        customerId: form.customer_id,
+        projectId: projectId!,
+        customerId,
         name,
         phone,
         email,
