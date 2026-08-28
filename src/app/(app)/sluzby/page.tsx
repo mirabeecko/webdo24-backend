@@ -1,28 +1,13 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { listProducts } from '@/lib/actions/upsell'
 import ServiceCatalog from '@/components/app/ServiceCatalog'
 
 export default async function ServicesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id, name, email')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) redirect('/dashboard')
-
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id')
-    .eq('customer_id', customer.id)
-    .single()
+  const context = await getAppCustomerContext()
+  if (!context?.user) redirect('/login')
 
   const products = await listProducts()
 
@@ -37,8 +22,8 @@ export default async function ServicesPage() {
 
       <ServiceCatalog
         products={products}
-        customerEmail={customer.email}
-        projectId={project?.id}
+        customerEmail={context.customer.email || context.user.email || ''}
+        projectId={context.project?.id}
       />
     </div>
   )

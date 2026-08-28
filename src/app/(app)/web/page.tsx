@@ -1,29 +1,17 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import WebOverview from '@/components/app/WebOverview'
 
 export default async function WebPage() {
+  const context = await getAppCustomerContext()
+  if (!context?.user) redirect('/login')
+  if (!context.project) redirect('/dashboard')
+
+  const project = context.project
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) redirect('/dashboard')
-
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, title, slug, domain, production_url, status, current_version_id, created_at')
-    .eq('customer_id', customer.id)
-    .single()
-
-  if (!project) redirect('/dashboard')
 
   // Analytics — posledních 7 dní
   const since = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]

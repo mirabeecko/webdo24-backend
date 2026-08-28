@@ -1,28 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 
 async function getCustomerProject() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) return null
-
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, slug, production_url')
-    .eq('customer_id', customer.id)
-    .single()
-
-  return project
+  const context = await getAppCustomerContext()
+  return context?.project ?? null
 }
 
 // ── WEBSITE CONTENT ──

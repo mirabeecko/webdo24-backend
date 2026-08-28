@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext, requireAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 
 // Graceful wrappers that don't crash on missing columns/tables
@@ -8,31 +9,21 @@ import { revalidatePath } from 'next/cache'
 
 async function getCustomerSafe() {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return null
-    const { data: customer, error } = await supabase
-      .from('webdo24_customers')
-      .select('id, telegram_phone, telegram_connected, telegram_chat_id')
-      .eq('user_id', user.id)
-      .single()
-    if (error) return null
-    return customer
+    const context = await getAppCustomerContext()
+    if (!context) return null
+    return {
+      id: context.customer.id,
+      telegram_phone: context.customer.telegram_phone ?? null,
+      telegram_connected: context.customer.telegram_connected ?? false,
+      telegram_chat_id: context.customer.telegram_chat_id ?? null,
+    }
   } catch { return null }
 }
 
 async function getProjectSafe() {
   try {
-    const customer = await getCustomerSafe()
-    if (!customer) return null
-    const supabase = await createClient()
-    const { data: project, error } = await supabase
-      .from('webdo24_projects')
-      .select('id, sandbox_enabled, sandbox_url, custom_domain, custom_domain_verified, production_url, status')
-      .eq('customer_id', customer.id)
-      .single()
-    if (error) return null
-    return project
+    const context = await getAppCustomerContext()
+    return context?.project ?? null
   } catch { return null }
 }
 
@@ -51,13 +42,12 @@ export async function getTelegramSettings() {
 
 export async function saveTelegramPhone(phone: string) {
   try {
+    const context = await requireAppCustomerContext()
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Nejste přihlášen')
     const { error } = await supabase
       .from('webdo24_customers')
       .update({ telegram_phone: phone } as any)
-      .eq('user_id', user.id)
+      .eq('id', context.customer.id)
     if (error) throw new Error(error.message)
     revalidatePath('/nastaveni')
   } catch (err) {
@@ -82,16 +72,13 @@ export async function getSandboxStatus() {
 
 export async function toggleSandbox(enabled: boolean) {
   try {
+    const context = await requireAppCustomerContext()
+    if (!context.project) throw new Error('Projekt nenalezen')
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Nejste přihlášen')
-    const { data: customer } = await supabase
-      .from('webdo24_customers').select('id').eq('user_id', user.id).single()
-    if (!customer) throw new Error('Zákazník nenalezen')
     const { error } = await supabase
       .from('webdo24_projects')
       .update({ sandbox_enabled: enabled } as any)
-      .eq('customer_id', customer.id)
+      .eq('id', context.project.id)
     if (error) throw new Error(error.message)
     revalidatePath('/nastaveni')
   } catch (err) {
@@ -108,18 +95,16 @@ export async function getDomainSettings() {
     return {
       custom_domain: (project as any).custom_domain ?? null,
       custom_domain_verified: (project as any).custom_domain_verified ?? false,
+      custom_domain_verification_token: (project as any).custom_domain_verification_token ?? null,
     }
   } catch { return null }
 }
 
 export async function saveCustomDomain(domain: string) {
   try {
+    const context = await requireAppCustomerContext()
+    if (!context.project) throw new Error('Projekt nenalezen')
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Nejste přihlášen')
-    const { data: customer } = await supabase
-      .from('webdo24_customers').select('id').eq('user_id', user.id).single()
-    if (!customer) throw new Error('Zákazník nenalezen')
     const token = `webdo24-verify-${crypto.randomUUID().slice(0, 8)}`
     const { error } = await supabase
       .from('webdo24_projects')
@@ -128,7 +113,7 @@ export async function saveCustomDomain(domain: string) {
         custom_domain_verified: false,
         custom_domain_verification_token: token,
       } as any)
-      .eq('customer_id', customer.id)
+      .eq('id', context.project.id)
     if (error) throw new Error(error.message)
     revalidatePath('/nastaveni')
   } catch (err) {

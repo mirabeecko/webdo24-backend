@@ -5,8 +5,8 @@
 // Orchestrace průvodce „Připojit web"
 // ============================================
 
-import { getCurrentUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 import { registerWebsite, getWebsite, listWebsites, setConnectionStatus, ensureSiteId } from '@/lib/website-connection/registry'
 import { createRun, finishRun, setStep, setCurrentStep } from '@/lib/website-connection/runs'
@@ -18,12 +18,9 @@ import type { ConnectionStepKey, DiscoveredContent, DiscoveredForm, DiscoveryRes
 const CONNECTOR_VERSION = '1.0.0'
 
 async function ctx() {
-  const user = await getCurrentUser()
-  if (!user) throw new Error('not_authenticated')
-  const admin = createAdminClient()
-  const { data: customer } = await admin.from('webdo24_customers').select('id').eq('user_id', user.id).maybeSingle()
-  if (!customer) throw new Error('not_authenticated')
-  return { userId: user.id, customerId: customer.id as string }
+  const context = await getAppCustomerContext()
+  if (!context) throw new Error('not_authenticated')
+  return { userId: context.user.id, customerId: context.customer.id }
 }
 
 // --------------------------------------------------------------

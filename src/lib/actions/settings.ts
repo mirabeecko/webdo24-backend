@@ -1,20 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext, requireAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 
 export async function getProfile() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('*')
-    .eq('user_id', user.id)
-    .single()
-
-  return customer
+  const context = await getAppCustomerContext()
+  return context?.customer ?? null
 }
 
 export async function updateProfile(updates: {
@@ -25,9 +17,8 @@ export async function updateProfile(updates: {
   dic?: string
   address?: string
 }) {
+  const context = await requireAppCustomerContext()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Nejste přihlášen')
 
   // Sanitize — email se mění přes Supabase Auth, ne tady
   const allowed = ['name', 'company', 'phone', 'ico', 'dic', 'address'] as const
@@ -38,7 +29,7 @@ export async function updateProfile(updates: {
   const { data, error } = await supabase
     .from('webdo24_customers')
     .update(safe)
-    .eq('user_id', user.id)
+    .eq('id', context.customer.id)
     .select()
 
   if (error) throw new Error(error.message)
@@ -54,22 +45,14 @@ export async function sendChangeEmailLink(newEmail: string) {
 }
 
 export async function getAutomations() {
+  const context = await getAppCustomerContext()
+  if (!context) return []
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) return []
-
   const { data } = await supabase
     .from('webdo24_automations')
     .select('*')
-    .eq('customer_id', customer.id)
+    .eq('customer_id', context.customer.id)
 
   return data || []
 }
@@ -86,44 +69,27 @@ export async function toggleAutomation(id: string, enabled: boolean) {
 }
 
 export async function getEmailPrefs() {
+  const context = await getAppCustomerContext()
+  if (!context) return null
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) return null
-
   const { data } = await supabase
     .from('webdo24_customer_email_prefs')
     .select('*')
-    .eq('customer_id', customer.id)
+    .eq('customer_id', context.customer.id)
     .single()
 
   return data
 }
 
 export async function updateEmailPrefs(prefs: { notifications_enabled?: boolean; marketing_enabled?: boolean }) {
+  const context = await requireAppCustomerContext()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Nejste přihlášen')
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) throw new Error('Zákazník nenalezen')
 
   const { error } = await supabase
     .from('webdo24_customer_email_prefs')
     .upsert({
-      customer_id: customer.id,
+      customer_id: context.customer.id,
       notifications_enabled: prefs.notifications_enabled ?? true,
       marketing_enabled: prefs.marketing_enabled ?? true,
       updated_at: new Date().toISOString(),

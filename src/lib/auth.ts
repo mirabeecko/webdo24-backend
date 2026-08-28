@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import type { UserRole } from '@/types'
 
 export async function getUser() {
@@ -38,12 +39,29 @@ export async function isAdmin(): Promise<boolean> {
 }
 
 export async function getCustomerId(userId: string): Promise<string | null> {
+  const currentContext = await getAppCustomerContext()
+  if (currentContext && currentContext.user?.id === userId) {
+    return currentContext.customer.id
+  }
+
   const admin = createAdminClient()
-  const { data, error } = await admin
+  const { data: customer, error: customerError } = await admin
     .from('webdo24_customers')
     .select('id')
     .eq('user_id', userId)
-    .single()
-  if (error || !data) return null
-  return data.id
+    .maybeSingle()
+
+  if (customer?.id) return customer.id
+  if (customerError && customerError.code !== 'PGRST116') return null
+
+  const { data: membership, error: membershipError } = await admin
+    .from('webdo24_customer_memberships')
+    .select('customer_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (membershipError || !membership?.customer_id) return null
+  return membership.customer_id
 }

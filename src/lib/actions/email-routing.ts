@@ -1,29 +1,24 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 
 // ── HELPER: get customer + project ──
 async function getCustomerWithProject() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const context = await getAppCustomerContext()
+  if (!context) return null
 
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!customer) return null
-
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, slug, zone_id')
-    .eq('customer_id', customer.id)
-    .single()
-
-  return { customer, project }
+  return {
+    customer: { id: context.customer.id },
+    project: context.project
+      ? {
+          id: context.project.id,
+          slug: context.project.slug,
+          zone_id: context.project.zone_id,
+        }
+      : null,
+  }
 }
 
 // ── VALIDATION ──

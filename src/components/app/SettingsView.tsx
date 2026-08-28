@@ -43,7 +43,11 @@ interface EmailPrefs {
 
 interface TelegramSettings { telegram_phone: string | null; telegram_connected: boolean }
 interface SandboxStatus { sandbox_enabled: boolean; sandbox_url: string | null; production_url: string | null; status: string }
-interface DomainSettings { custom_domain: string | null; custom_domain_verified: boolean }
+interface DomainSettings {
+  custom_domain: string | null
+  custom_domain_verified: boolean
+  custom_domain_verification_token?: string | null
+}
 interface Suggestion {
   id: string; title: string; description: string | null;
   category: string; priority: string; status: string; created_at: string
@@ -196,7 +200,7 @@ export default function SettingsView({
   const [tgSaved, setTgSaved] = useState(false)
 
   // Sandbox
-  const [sandboxOn, setSandboxOn] = useState(sandbox?.sandbox_enabled ?? true)
+  const [sandboxOn, setSandboxOn] = useState(sandbox?.sandbox_enabled ?? false)
   const [sandboxPending, startSandboxTransition] = useTransition()
 
   // Domain
@@ -301,6 +305,7 @@ export default function SettingsView({
   const autoItems = autos.filter((a) => AUTO_META[a.automation_key])
   const aiItems = autos.filter((a) => AI_META[a.automation_key])
   const pendingSuggestions = suggestions.filter((s) => s.status === 'pending')
+  const sandboxUnavailable = !sandbox
 
   return (
     <div className="min-h-screen bg-[#0a0e17]">
@@ -342,14 +347,29 @@ export default function SettingsView({
 
         {/* ═══ SANDBOX ═══ */}
         <section className="bg-[#0d1525] rounded-2xl border border-white/5 shadow-sm p-6 mb-4">
-          <SectionHeader icon={sandboxOn ? Unlock : Lock} title="Sandbox" sub={sandboxOn ? 'Testovací režim je aktivní — web není veřejně dostupný' : 'Sandbox je vypnutý — web je online'} accent={sandboxOn ? 'text-amber-400' : 'text-emerald-400'} />
+          <SectionHeader
+            icon={sandboxOn ? Lock : Unlock}
+            title="Sandbox"
+            sub={
+              sandboxUnavailable
+                ? 'Sandbox zatím není dostupný, protože k účtu není přiřazen aktivní web'
+                : sandboxOn
+                  ? 'Testovací režim je aktivní — veřejný web je chráněný'
+                  : 'Sandbox je vypnutý — veřejný web je online'
+            }
+            accent={sandboxOn ? 'text-amber-400' : 'text-emerald-400'}
+          />
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/[0.02]">
               <div>
                 <p className="text-sm font-medium text-white">Sandbox režim</p>
-                <p className="text-xs text-white/40 mt-0.5">V sandboxu můžete web bezpečně testovat. Veřejnost ho neuvidí.</p>
+                <p className="text-xs text-white/40 mt-0.5">
+                  {sandboxUnavailable
+                    ? 'Jakmile bude k účtu připojen web, přepínač se aktivuje a bude řídit skutečný stav projektu.'
+                    : 'V sandboxu můžete web bezpečně testovat. Veřejnost ho neuvidí.'}
+                </p>
               </div>
-              <Toggle checked={sandboxOn} onChange={handleSandboxToggle} disabled={sandboxPending} />
+              <Toggle checked={sandboxOn} onChange={handleSandboxToggle} disabled={sandboxPending || sandboxUnavailable} />
             </div>
             {sandboxOn && sandbox?.sandbox_url && (
               <div className="flex items-center justify-between p-4 rounded-xl bg-amber-400/5 border border-amber-400/20">
@@ -360,6 +380,17 @@ export default function SettingsView({
                   </a>
                 </div>
                 <ExternalLink className="h-4 w-4 text-amber-400/40" />
+              </div>
+            )}
+            {!sandboxOn && sandbox?.production_url && (
+              <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-400/5 border border-emerald-400/20">
+                <div>
+                  <p className="text-xs text-emerald-400/60 uppercase tracking-wider mb-1">Produkční URL</p>
+                  <a href={sandbox.production_url} target="_blank" rel="noopener noreferrer" className="text-sm text-emerald-400 hover:underline font-mono">
+                    {sandbox.production_url}
+                  </a>
+                </div>
+                <ExternalLink className="h-4 w-4 text-emerald-400/40" />
               </div>
             )}
           </div>
@@ -379,7 +410,7 @@ export default function SettingsView({
                     <p><span className="text-white/30">Název:</span> @ (nebo ponechte prázdné)</p>
                     <p><span className="text-white/30">Hodnota:</span></p>
                   </div>
-                  <CodeBlock text={`webdo24-verify-${domain.custom_domain}`} />
+                  <CodeBlock text={domain.custom_domain_verification_token || `webdo24-verify-${domain.custom_domain}`} />
                   <p className="text-xs text-white/30">Po přidání záznamu počkejte až 24 hodin na ověření. Poté nasměrujte DNS A záznam na náš server.</p>
                 </div>
               </HintBox>

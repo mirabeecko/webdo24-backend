@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { queueEmailToCustomer } from '@/lib/email/queue'
 import { cookies } from 'next/headers'
 
@@ -52,21 +53,47 @@ export async function registerAction(name: string, email: string, password: stri
   }
 
   if (data.user) {
-    const { data: customer } = await supabase
+    const admin = createAdminClient()
+    const customerPayload = {
+      user_id: data.user.id,
+      name,
+      email,
+      phone: '',
+      company: '',
+      ico: '',
+      dic: '',
+      address: '',
+      note: '',
+      telegram_phone: '',
+      telegram_connected: false,
+      telegram_chat_id: '',
+    }
+
+    const { data: customer, error: customerError } = await admin
       .from('webdo24_customers')
-      .insert({
-        user_id: data.user.id,
-        name,
-        email,
-      })
+      .insert(customerPayload)
       .select('id')
       .single()
 
-    if (customer?.id) {
-      queueEmailToCustomer(customer.id, 'welcome', {
-        customerName: name,
-      }).catch((err) => console.error('[registerAction] welcome email failed:', err))
+    if (customerError || !customer?.id) {
+      return { error: customerError?.message ?? 'Nepodařilo se vytvořit zákaznický profil.' }
     }
+
+    const { error: membershipError } = await admin
+      .from('webdo24_customer_memberships')
+      .upsert({
+        customer_id: customer.id,
+        user_id: data.user.id,
+        role: 'owner',
+      })
+
+    if (membershipError) {
+      return { error: membershipError.message }
+    }
+
+    queueEmailToCustomer(customer.id, 'welcome', {
+      customerName: name,
+    }).catch((err) => console.error('[registerAction] welcome email failed:', err))
   }
 
   return { success: true }

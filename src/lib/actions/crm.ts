@@ -9,8 +9,9 @@
 // (graceful degradation — CRM funguje i bez n8n).
 // ============================================
 
-import { createClient, getCurrentUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 
 const AI_TIMEOUT_MS = 45_000
@@ -68,27 +69,17 @@ export interface CrmData {
 // --------------------------------------------------------------
 
 async function getCrmProject() {
-  const user = await getCurrentUser()
-  if (!user) return null
+  const context = await getAppCustomerContext()
+  if (!context?.project) return null
 
-  const admin = createAdminClient()
-  const { data: customer } = await admin
-    .from('webdo24_customers')
-    .select('id, name')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  if (!customer) return null
-
-  const { data: project } = await admin
-    .from('webdo24_projects')
-    .select('id, title, business_type, location')
-    .eq('customer_id', customer.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (!project) return null
-
-  return { customerId: customer.id as string, customerName: (customer.name as string) || '', projectId: project.id as string, projectTitle: (project.title as string) || '', businessType: (project.business_type as string) || null, location: (project.location as string) || null }
+  return {
+    customerId: context.customer.id,
+    customerName: context.customer.name || '',
+    projectId: context.project.id,
+    projectTitle: context.project.title || '',
+    businessType: context.project.business_type || null,
+    location: context.project.location || null,
+  }
 }
 
 // --------------------------------------------------------------

@@ -75,7 +75,7 @@ export default function EmailRoutingView() {
       const data = await getEmailRoutingRequests()
       setRequests(data.requests)
       setProjectDomain(data.projectDomain)
-      setProjectZoneId(data.projectZoneId)
+      setProjectZoneId(data.projectZoneId ?? null)
       if (data.projectDomain && !domain) {
         setDomain(data.projectDomain)
       }

@@ -1,34 +1,15 @@
 'use server'
 
-import { createClient, getCurrentUser } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import type { ChangeRequest } from '@/types'
 
 export async function getDashboardData() {
   const supabase = await createClient()
-  const user = await getCurrentUser()
-  if (!user) return null
+  const context = await getAppCustomerContext()
+  if (!context) return null
 
-  // customer + projekt v JEDNOM dotazu (embedded resource) — ušetří
-  // jeden sekvenční round-trip na vzdálenou Supabase.
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select(
-      'id, name, company, has_pro_pack, webdo24_projects(id, title, slug, domain, production_url, status)',
-    )
-    .eq('user_id', user.id)
-    .order('created_at', { referencedTable: 'webdo24_projects', ascending: false })
-    .maybeSingle()
-  if (!customer) return null
-
-  const projects = (customer.webdo24_projects as Array<{
-    id: string
-    title: string
-    slug: string | null
-    domain: string | null
-    production_url: string | null
-    status: string | null
-  }> | null) ?? []
-  const project = projects[0] ?? null
+  const { user, customer, project } = context
   if (!project) return null
 
   const [

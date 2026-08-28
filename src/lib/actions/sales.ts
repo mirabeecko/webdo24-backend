@@ -5,8 +5,7 @@
 // Ukládá se do existující tabulky (sales-store, bez DDL).
 // ============================================
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentUser } from '@/lib/supabase/server'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { revalidatePath } from 'next/cache'
 import { sendSmtpEmail, smtpConfigured, type SmtpSettings } from '@/lib/email/smtp'
 import { quoteToHtml } from '@/lib/email/quote-html'
@@ -80,24 +79,15 @@ export interface EmailSettings extends SmtpSettings {
 // --------------------------------------------------------------
 
 async function getSalesContext() {
-  const user = await getCurrentUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  // customer + projekty v JEDNOM dotazu (embedded resource)
-  const { data: customer } = await admin
-    .from('webdo24_customers')
-    .select('id, name, email, webdo24_projects(id, title)')
-    .eq('user_id', user.id)
-    .order('created_at', { referencedTable: 'webdo24_projects', ascending: false })
-    .maybeSingle()
-  if (!customer) return null
-  const projects = (customer.webdo24_projects as Array<{ id: string; title: string }> | null) ?? []
-  const project = projects[0] ?? null
+  const context = await getAppCustomerContext()
+  if (!context) return null
+  const { user, customer, project } = context
   return {
-    customerId: customer.id as string,
-    customerName: (customer.name as string) || '',
-    customerEmail: (customer.email as string) || '',
-    projectId: project?.id as string | null,
+    userId: user.id,
+    customerId: customer.id,
+    customerName: customer.name || '',
+    customerEmail: customer.email || user.email || '',
+    projectId: project?.id ?? null,
     projectTitle: project?.title || '',
   }
 }

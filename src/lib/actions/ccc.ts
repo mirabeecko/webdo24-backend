@@ -9,9 +9,7 @@
 // (requireCapability), actions jen dodají projectId.
 // ============================================
 
-import { getCurrentUser } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getMembership } from '@/lib/ccc/guard'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { listPages, getPageContent, getCompanyProfile, getBrandProfile } from '@/lib/ccc/registry'
 import {
   createChangeSet,
@@ -50,36 +48,19 @@ const EDIT_ROLES: readonly MembershipRole[] = ['owner', 'admin', 'editor']
 const PUBLISH_ROLES: readonly MembershipRole[] = ['owner', 'admin']
 
 export async function getCccContext(): Promise<CccContext | null> {
-  const user = await getCurrentUser()
-  if (!user) return null
+  const context = await getAppCustomerContext()
+  if (!context?.project) return null
 
-  // customer + projekty v JEDNOM dotazu (embedded resource) — místo
-  // dvou sekvenčních SELECTů; membership je cacheovaný per-request.
-  const admin = createAdminClient()
-  const { data: customer } = await admin
-    .from('webdo24_customers')
-    .select('id, webdo24_projects(id, slug)')
-    .eq('user_id', user.id)
-    .order('created_at', { referencedTable: 'webdo24_projects', ascending: false })
-    .maybeSingle()
-  if (!customer) return null
-
-  const projects = (customer.webdo24_projects as Array<{ id: string; slug: string | null }> | null) ?? []
-  const project = projects[0] ?? null
-  if (!project) return null
-
-  const membership = await getMembership(user.id, customer.id)
-  // fallback pro zákazníky bez seednutého membershipu (customers.user_id = owner)
-  const role: MembershipRole = membership?.role ?? 'owner'
+  const role: MembershipRole = context.role
 
   return {
-    userId: user.id,
-    customerId: customer.id,
-    projectId: project.id,
-    projectSlug: project.slug ?? null,
+    userId: context.user.id,
+    customerId: context.customer.id,
+    projectId: context.project.id,
+    projectSlug: context.project.slug ?? null,
     role,
-    canEdit: EDIT_ROLES.includes(role),
-    canPublish: PUBLISH_ROLES.includes(role),
+    canEdit: context.canEdit && EDIT_ROLES.includes(role),
+    canPublish: context.canPublish && PUBLISH_ROLES.includes(role),
   }
 }
 

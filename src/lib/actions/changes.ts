@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { classifyChangeRequest } from '@/lib/ai/change-classifier'
 import { queueEmailToCustomer } from '@/lib/email/queue'
 import type { ChangeRequest, ChangeCategory } from '@/types'
@@ -12,25 +13,15 @@ import type { ChangeRequest, ChangeCategory } from '@/types'
 // --------------------------------------------------------------
 
 async function getCallerProject() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const context = await getAppCustomerContext()
+  if (!context?.project) return null
 
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id')
-    .eq('user_id', user.id)
-    .single()
-  if (!customer) return null
-
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, current_version_id')
-    .eq('customer_id', customer.id)
-    .single()
-  if (!project) return null
-
-  return { projectId: project.id, customerId: customer.id, userId: user.id, currentVersionId: project.current_version_id }
+  return {
+    projectId: context.project.id,
+    customerId: context.customer.id,
+    userId: context.user.id,
+    currentVersionId: context.project.current_version_id,
+  }
 }
 
 // --------------------------------------------------------------

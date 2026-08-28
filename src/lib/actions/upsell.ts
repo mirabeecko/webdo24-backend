@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import type { Product, UpsellEvent, UpsellEventType } from '@/types'
 
 // --------------------------------------------------------------
@@ -9,22 +10,9 @@ import type { Product, UpsellEvent, UpsellEventType } from '@/types'
 // --------------------------------------------------------------
 
 async function getCaller() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id, has_pro_pack, created_at')
-    .eq('user_id', user.id)
-    .single()
-  if (!customer) return null
-
-  const { data: project } = await supabase
-    .from('webdo24_projects')
-    .select('id, business_type, status, created_at, current_version_id')
-    .eq('customer_id', customer.id)
-    .single()
+  const context = await getAppCustomerContext()
+  if (!context) return null
+  const { customer, project, user } = context
 
   return {
     userId: user.id,

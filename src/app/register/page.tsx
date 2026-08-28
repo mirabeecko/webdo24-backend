@@ -2,49 +2,32 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { registerAction } from '@/lib/actions/auth'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const router = useRouter()
-  const supabase = createClient()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
+    startTransition(async () => {
+      const result = await registerAction(name, email, password)
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { role: 'customer', name },
-      },
+      router.push('/login')
+      router.refresh()
     })
-
-    if (signUpError) {
-      setError(signUpError.message)
-      setLoading(false)
-      return
-    }
-
-    if (data.user) {
-      await supabase.from('webdo24_customers').insert({
-        user_id: data.user.id,
-        name,
-        email,
-      })
-    }
-
-    router.push('/login')
-    router.refresh()
   }
 
   return (
@@ -109,10 +92,10 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={isPending}
             className="w-full rounded-lg bg-[#00e5ff] px-4 py-2.5 font-semibold text-[#0a0e17] hover:bg-[#00c8e0] disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Registrace...' : 'Zaregistrovat se'}
+            {isPending ? 'Registrace...' : 'Zaregistrovat se'}
           </button>
         </form>
 

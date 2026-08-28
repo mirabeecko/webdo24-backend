@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { getAppCustomerContext } from '@/lib/customer-context'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface BillingData {
@@ -16,10 +16,8 @@ export interface BillingData {
 }
 
 export async function getBillingData(): Promise<BillingData> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
+  const context = await getAppCustomerContext()
+  if (!context) {
     return {
       customerId: null,
       stripeCustomerId: null,
@@ -33,11 +31,7 @@ export async function getBillingData(): Promise<BillingData> {
     }
   }
 
-  const { data: customer } = await supabase
-    .from('webdo24_customers')
-    .select('id, stripe_customer_id, subscription_status, current_period_end')
-    .eq('user_id', user.id)
-    .single()
+  const { customer, project } = context
 
   if (!customer) {
     return {
@@ -100,7 +94,7 @@ export async function getBillingData(): Promise<BillingData> {
 
   return {
     customerId: customer.id,
-    stripeCustomerId: customer.stripe_customer_id,
+    stripeCustomerId: project?.stripe_customer_id || customer.stripe_customer_id,
     hasActiveHosting,
     hasActiveMaintenance,
     hostingEndDate,
